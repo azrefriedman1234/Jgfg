@@ -4,29 +4,23 @@ import android.content.Context
 import java.io.File
 
 object TempCleaner {
-    fun clean(context: Context): Int {
-        var deleted = 0
-        deleted += deleteDirContents(context.cacheDir)
-        context.externalCacheDir?.let { deleted += deleteDirContents(it) }
 
-        val appTmp = File(context.filesDir, "pasiflonet_tmp")
-        if (appTmp.exists()) deleted += deleteDirContents(appTmp)
-
-        // לא מוחקים: filesDir/tdlib או filesDir/tdfiles (כדי לשמור התחברות)
-        return deleted
+    private fun deleteRec(f: File): Int {
+        var n = 0
+        if (!f.exists()) return 0
+        if (f.isDirectory) f.listFiles()?.forEach { n += deleteRec(it) }
+        if (f.delete()) n++
+        return n
     }
 
-    private fun deleteDirContents(dir: File): Int {
-        var count = 0
-        if (!dir.exists()) return 0
-        dir.listFiles()?.forEach { f ->
-            count += if (f.isDirectory) {
-                val inner = deleteDirContents(f)
-                if (f.delete()) inner + 1 else inner
-            } else {
-                if (f.delete()) 1 else 0
-            }
-        }
-        return count
+    fun clean(ctx: Context): Int {
+        var n = 0
+        // cache
+        n += deleteRec(ctx.cacheDir)
+        // files/tmp
+        val tmp = File(ctx.filesDir, "tmp")
+        n += deleteRec(tmp)
+        tmp.mkdirs()
+        return n
     }
 }

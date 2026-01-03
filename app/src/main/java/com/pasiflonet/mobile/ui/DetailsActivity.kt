@@ -1,176 +1,118 @@
 package com.pasiflonet.mobile.ui
 
-import android.graphics.BitmapFactory
 import android.net.Uri
 import android.os.Bundle
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
-import androidx.lifecycle.lifecycleScope
 import com.google.android.material.snackbar.Snackbar
-import com.google.mlkit.nl.languageid.LanguageIdentification
-import com.google.mlkit.nl.translate.TranslateLanguage
-import com.google.mlkit.nl.translate.Translation
-import com.google.mlkit.nl.translate.TranslatorOptions
 import com.pasiflonet.mobile.data.AppPrefs
 import com.pasiflonet.mobile.databinding.ActivityDetailsBinding
 import com.pasiflonet.mobile.td.TdLibManager
-import com.pasiflonet.mobile.ui.editor.OverlayEditorView
-import kotlinx.coroutines.launch
+import com.pasiflonet.mobile.util.OnDeviceTranslate
+import com.pasiflonet.mobile.util.Thumbs
 import org.drinkless.tdlib.TdApi
-import java.io.InputStream
 
 class DetailsActivity : AppCompatActivity() {
 
     private lateinit var b: ActivityDetailsBinding
-    private lateinit var prefs: AppPrefs
 
-    private var chatId: Long = 0L
-    private var messageId: Long = 0L
-    private var hasMedia: Boolean = false
+    private val pickLogo = registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri: Uri? ->
+        if (uri == null) return@registerForActivityResult
+        contentResolver.takePersistableUriPermission(uri, android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        AppPrefs.setWatermark(this, uri.toString())
+        Snackbar.make(b.root, "✅ לוגו נשמר", Snackbar.LENGTH_SHORT).show()
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         b = ActivityDetailsBinding.inflate(layoutInflater)
         setContentView(b.root)
 
-        prefs = AppPrefs(this)
-
-        // מגיעים מהטבלה
-        chatId = intent.getLongExtra("chatId", 0L)
-        messageId = intent.getLongExtra("messageId", 0L)
-        val meta = intent.getStringExtra("meta") ?: ""
+        val chatId = intent.getLongExtra("chatId", 0L)
+        val msgId = intent.getLongExtra("msgId", 0L)
+        val dateUnix = intent.getIntExtra("dateUnix", 0)
+        val type = intent.getStringExtra("type") ?: ""
         val text = intent.getStringExtra("text") ?: ""
-        val miniThumbB64 = intent.getStringExtra("miniThumbB64") ?: ""
-        hasMedia = intent.getBooleanExtra("hasMedia", false)
+        val miniThumbB64 = intent.getStringExtra("miniThumbB64")
+        val localPath = intent.getStringExtra("localPath")
 
-        b.tvMeta.text = meta
-        b.etMessage.setText(text)
+        b.etCaption.setText(text)
+        b.tvMeta.text = "chatId=$chatId | msgId=$msgId | type=$type | date=$dateUnix\nlocalPath=${localPath ?: "-"}"
 
-        // Preview: miniThumbnail (base64) אם קיים
-        if (miniThumbB64.isNotBlank()) {
-            try {
-                val bytes = android.util.Base64.decode(miniThumbB64, android.util.Base64.DEFAULT)
-                val bmp = BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
-                b.editorView.setImageBitmap(bmp)
-            } catch (_: Throwable) { }
-        }
+        // Preview מלמעלה למטה בצד שמאל (minithumbnail)
+        val bmp = Thumbs.b64ToBitmap(miniThumbB64)
+        if (bmp != null) b.imgPreview.setImageBitmap(bmp)
 
-        // כפתור הוסף לוגו: טוען watermark מההגדרות ומפעיל מצב WATERMARK
-        b.btnWatermark.setOnClickListener {
-            val wm = prefs.getWatermark()
-            if (wm.isNullOrBlank()) {
-                Snackbar.make(b.root, "לא נטען סימן מים בהגדרות", Snackbar.LENGTH_LONG).show()
-                return@setOnClickListener
-            }
-            val bmp = loadBitmapFromUriString(wm)
-            if (bmp == null) {
-                Snackbar.make(b.root, "לא הצלחתי לפתוח את סימן המים", Snackbar.LENGTH_LONG).show()
-                return@setOnClickListener
-            }
-            b.editorView.setWatermarkBitmap(bmp)
-            b.editorView.setMode(OverlayEditorView.Mode.WATERMARK)
-            Snackbar.make(b.root, "גע בתמונה כדי למקם את הלוגו", Snackbar.LENGTH_SHORT).show()
-        }
-
-        // מצב טשטוש: גרור כדי ליצור מלבן טשטוש
+        // טשטוש: מוסיף ריבוע, אפשר לגרור
         b.btnBlur.setOnClickListener {
-            b.editorView.setMode(OverlayEditorView.Mode.BLUR)
-            Snackbar.make(b.root, "גרור על התמונה כדי לסמן אזור טשטוש", Snackbar.LENGTH_SHORT).show()
+            b.overlayEditor.addRectCentered()
+            Snackbar.make(b.root, "✅ הוסף אזור טשטוש (אפשר לגרור)", Snackbar.LENGTH_SHORT).show()
         }
 
-        b.btnClearEdits.setOnClickListener {
-            b.editorView.clearEdits()
-            Snackbar.make(b.root, "✅ נוקו עריכות", Snackbar.LENGTH_SHORT).show()
+        // לוגו/סימן מים: כרגע “בחירה ושמירה” (אח״כ ניישם צריבה לוידאו/תמונה)
+        b.btnWatermark.setOnClickListener {
+            pickLogo.launch(arrayOf("image/*"))
         }
 
-        // תרגום אוטומטי בחינם (on-device)
-        b.btnTranslate.setOnClickListener { autoTranslateIfNeeded(force = true) }
-        autoTranslateIfNeeded(force = false)
+        // תרגום חינם on-device
+        b.btnTranslate.setOnClickListener {
+            val src = b.etCaption.text?.toString() ?: ""
+            Snackbar.make(b.root, "⏳ מתרגם…", Snackbar.LENGTH_SHORT).show()
+            OnDeviceTranslate.toHebrew(src) { out, err ->
+                runOnUiThread {
+                    if (out != null) {
+                        b.etCaption.setText(out)
+                        Snackbar.make(b.root, "✅ תורגם", Snackbar.LENGTH_SHORT).show()
+                    } else {
+                        Snackbar.make(b.root, "❌ שגיאת תרגום: ${err ?: "unknown"}", Snackbar.LENGTH_LONG).show()
+                    }
+                }
+            }
+        }
 
-        // שליחה (כרגע: טקסט בלבד בצורה אמיתית עם בדיקת TdApi.Error)
-        // מדיה + עריכות (watermark/blur) נחבר לשלב FFmpeg/קובץ בפועל בהמשך.
+        // שליחה אמיתית: resolve @username -> chat.id ואז SendMessage
         b.btnSend.setOnClickListener {
-            val target = prefs.getTargetUsername()?.trim().orEmpty()
+            val target = AppPrefs.getTargetUsername(this).trim()
+            val caption = b.etCaption.text?.toString()?.trim().orEmpty()
+
             if (target.isBlank() || !target.startsWith("@")) {
-                Snackbar.make(b.root, "חובה להגדיר ערוץ יעד בפורמט @username", Snackbar.LENGTH_LONG).show()
+                Snackbar.make(b.root, "❌ צריך להגדיר ערוץ יעד בפורמט @username", Snackbar.LENGTH_LONG).show()
                 return@setOnClickListener
             }
 
-            val messageText = b.etMessage.text?.toString().orEmpty()
-            if (messageText.isBlank() && !b.swSendWithMedia.isChecked) {
-                Snackbar.make(b.root, "אין מה לשלוח", Snackbar.LENGTH_LONG).show()
-                return@setOnClickListener
-            }
+            val username = target.removePrefix("@")
 
-            lifecycleScope.launch {
-                // resolve @username -> chatId
-                TdLibManager.send(TdApi.SearchPublicChat(target.removePrefix("@"))) { obj ->
-                    if (obj is TdApi.Error) {
-                        runOnUiThread {
-                            Snackbar.make(b.root, "שגיאה ביעד: ${obj.code} ${obj.message}", Snackbar.LENGTH_LONG).show()
-                        }
-                        return@send
+            TdLibManager.send(TdApi.SearchPublicChat(username)) { obj ->
+                if (obj is TdApi.Error) {
+                    runOnUiThread {
+                        Snackbar.make(b.root, "❌ לא נמצא ערוץ: ${obj.message}", Snackbar.LENGTH_LONG).show()
                     }
-                    val chat = obj as TdApi.Chat
-                    val input = TdApi.InputMessageText(
-                        TdApi.FormattedText(messageText, null),
-                        null,
-                        false
-                    )
+                    return@send
+                }
 
-                    // שליחה אמיתית עם בדיקת Error/Message
-                    TdLibManager.send(TdApi.SendMessage(chat.id, null, null, null, null, input)) { res ->
-                        runOnUiThread {
-                            when (res) {
-                                is TdApi.Error -> Snackbar.make(b.root, "❌ לא נשלח: ${res.code} ${res.message}", Snackbar.LENGTH_LONG).show()
-                                is TdApi.Message -> {
-                                    Snackbar.make(b.root, "✅ נשלח בהצלחה (ID ${res.id})", Snackbar.LENGTH_LONG).show()
-                                    finish()
-                                }
-                                else -> Snackbar.make(b.root, "⚠️ תשובה לא צפויה מהשרת", Snackbar.LENGTH_LONG).show()
-                            }
+                val chat = obj as TdApi.Chat
+                val input: TdApi.InputMessageContent =
+                    if (!localPath.isNullOrBlank()) {
+                        // טקסט+מדיה (כ-Document הכי יציב)
+                        val file = TdApi.InputFileLocal(localPath)
+                        val ft = TdApi.FormattedText(caption, null)
+                        TdApi.InputMessageDocument(file, null, false, ft)
+                    } else {
+                        // רק טקסט
+                        val ft = TdApi.FormattedText(caption, null)
+                        TdApi.InputMessageText(ft, null, false)
+                    }
+
+                TdLibManager.send(TdApi.SendMessage(chat.id, null, null, null, null, input)) { res ->
+                    runOnUiThread {
+                        if (res is TdApi.Error) {
+                            Snackbar.make(b.root, "❌ שליחה נכשלה: ${res.message}", Snackbar.LENGTH_LONG).show()
+                        } else {
+                            Snackbar.make(b.root, "✅ נשלח באמת לערוץ ${target}", Snackbar.LENGTH_SHORT).show()
                         }
                     }
                 }
             }
         }
-    }
-
-    private fun autoTranslateIfNeeded(force: Boolean) {
-        val src = b.etMessage.text?.toString()?.trim().orEmpty()
-        if (src.isBlank()) return
-        if (!force && b.etTranslation.text?.toString()?.isNotBlank() == true) return
-
-        val langId = LanguageIdentification.getClient()
-        langId.identifyLanguage(src).addOnSuccessListener { lang ->
-            // אם זה עברית או לא מזוהה – לא מתרגמים
-            if (lang == "he" || lang == "iw" || lang == "und") return@addOnSuccessListener
-
-            val options = TranslatorOptions.Builder()
-                .setSourceLanguage(TranslateLanguage.fromLanguageTag(lang) ?: TranslateLanguage.ENGLISH)
-                .setTargetLanguage(TranslateLanguage.HEBREW)
-                .build()
-            val translator = Translation.getClient(options)
-
-            translator.downloadModelIfNeeded()
-                .addOnSuccessListener {
-                    translator.translate(src)
-                        .addOnSuccessListener { out -> b.etTranslation.setText(out) }
-                        .addOnFailureListener { e ->
-                            Snackbar.make(b.root, "שגיאת תרגום: ${e.message}", Snackbar.LENGTH_LONG).show()
-                        }
-                }
-                .addOnFailureListener { e ->
-                    Snackbar.make(b.root, "לא הצלחתי להוריד מודל תרגום: ${e.message}", Snackbar.LENGTH_LONG).show()
-                }
-        }
-    }
-
-    private fun loadBitmapFromUriString(uriStr: String): android.graphics.Bitmap? {
-        return try {
-            val uri = Uri.parse(uriStr)
-            val ins: InputStream? = contentResolver.openInputStream(uri)
-            val bmp = ins.use { it?.let { stream -> BitmapFactory.decodeStream(stream) } }
-            bmp
-        } catch (_: Throwable) { null }
     }
 }
