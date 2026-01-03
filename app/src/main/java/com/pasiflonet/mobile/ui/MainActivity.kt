@@ -115,8 +115,8 @@ TdLibManager.init(this)
                     msgId = msg.id,
                     dateSec = msg.date,
                     from = "src",
-                    text = text
-                )
+                    text = text,
+                        miniThumbB64 = TdThumb.miniThumbB64(msg))
                 adapter.prepend(ui)
             }
         }
