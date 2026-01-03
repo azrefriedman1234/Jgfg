@@ -19,6 +19,7 @@ import com.google.android.material.snackbar.Snackbar
 import com.pasiflonet.mobile.R
 import com.pasiflonet.mobile.data.AppPrefs
 import com.pasiflonet.mobile.worker.SendWorker
+import com.pasiflonet.mobile.util.TranslateUtil
 import java.io.InputStream
 import kotlin.math.abs
 import kotlin.math.max
@@ -247,12 +248,49 @@ class DetailsActivity : AppCompatActivity() {
     }
 
     private fun translateStub() {
-        // כדי לא לשבור קומפילציה בלי תלות חדשה:
-        // כאן זה סטאב. אם תרצה MLKit אמיתי (חינם on-device) אני אתן לך תלות + קוד עובד.
-        Snackbar.make(ivPreview, "תרגום אוטומטי on-device: אוסיף בשלב הבא בלי לשבור בנייה", Snackbar.LENGTH_SHORT).show()
+        val current = etCaption.text?.toString().orEmpty()
+        if (current.isBlank()) {
+            Snackbar.make(ivPreview, "אין טקסט לתרגום", Snackbar.LENGTH_SHORT).show()
+            return
+        }
+        Snackbar.make(ivPreview, "מתרגם לעברית (on-device)...", Snackbar.LENGTH_SHORT).show()
+        TranslateUtil.toHebrew(
+            this,
+            current,
+            onResult = { out ->
+                runOnUiThread {
+                    etCaption.setText(out)
+                    Snackbar.make(ivPreview, "✅ תורגם לעברית", Snackbar.LENGTH_SHORT).show()
+                }
+            },
+            onError = { e ->
+                runOnUiThread {
+                    Snackbar.make(ivPreview, "❌ תרגום נכשל: ${e.message}", Snackbar.LENGTH_LONG).show()
+                }
+            }
+        )
     }
 
-    private fun enqueueSend() {
+    
+    private fun exportBlurRectsNormalized(): String {
+        // Convert view rects (pixels) -> normalized (0..1) relative to previewFrame
+        val rects = blurOverlay.getRects()
+        if (rects.isEmpty()) return ""
+        val vw = blurOverlay.width.toFloat().coerceAtLeast(1f)
+        val vh = blurOverlay.height.toFloat().coerceAtLeast(1f)
+
+        // "x1,y1,x2,y2;..."
+        return rects.joinToString(";") { r ->
+            val x1 = (r.left / vw).coerceIn(0f, 1f)
+            val y1 = (r.top / vh).coerceIn(0f, 1f)
+            val x2 = (r.right / vw).coerceIn(0f, 1f)
+            val y2 = (r.bottom / vh).coerceIn(0f, 1f)
+            "${x1},${y1},${x2},${y2}"
+        }
+    }
+
+
+private fun enqueueSend() {
         val target = AppPrefs.getTargetUsername(this).trim()
         if (target.isBlank()) {
             Snackbar.make(ivPreview, "❌ לא הוגדר @username יעד", Snackbar.LENGTH_SHORT).show()
@@ -274,6 +312,8 @@ class DetailsActivity : AppCompatActivity() {
             .putBoolean(SendWorker.KEY_SEND_WITH_MEDIA, mediaUri != null)
               .putString(SendWorker.KEY_MEDIA_URI, mediaUri?.toString() ?: "")
               .putString(SendWorker.KEY_MEDIA_MIME, mediaMime ?: "")
+              .putString(SendWorker.KEY_BLUR_RECTS, exportBlurRectsNormalized())
+              .putBoolean(SendWorker.KEY_USE_WATERMARK, true)
             .build()
 
         val req = OneTimeWorkRequestBuilder<SendWorker>()

@@ -84,6 +84,7 @@ tasks.matching { it.name == "preBuild" }.configureEach {
 }
 
 dependencies {
+    implementation("com.google.mlkit:language-id:17.0.6")
     implementation("com.google.mlkit:translate:17.0.3")
     implementation(files("libs/td-1.8.56.aar"))
     implementation(files("libs/ffmpeg-kit-full-gpl-6.0-2.LTS.aar"))

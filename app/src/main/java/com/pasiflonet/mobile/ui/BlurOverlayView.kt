@@ -57,6 +57,10 @@ class BlurOverlayView @JvmOverloads constructor(
         invalidate()
     }
 
+
+    fun getRects(): List<RectF> = rects.toList()
+
+
     override fun onDraw(canvas: Canvas) {
         super.onDraw(canvas)
         for (r in rects) {

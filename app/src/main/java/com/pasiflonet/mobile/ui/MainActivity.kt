@@ -57,7 +57,10 @@ private lateinit var recycler: RecyclerView
         setContentView(R.layout.activity_main)
 
         
-        requestMediaPermissionsIfFirstRun()
+        
+        findViewById<android.view.View>(com.pasiflonet.mobile.R.id.btnSettings)
+            .setOnClickListener { startActivity(Intent(this, SettingsActivity::class.java)) }
+requestMediaPermissionsIfFirstRun()
 TdLibManager.init(this)
         TdLibManager.ensureClient()
         TdLibManager.send(TdApi.GetAuthorizationState()) { }
