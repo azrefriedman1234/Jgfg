@@ -56,6 +56,8 @@ class LoginActivity : AppCompatActivity() {
         }
 
         b.btnSendCode.setOnClickListener {
+            // UI: להציג תמיד אזור קוד + כפתור התחברות מיד
+            showCodeUi()
             val apiIdStr = b.etApiId.text?.toString()?.trim().orEmpty()
             val apiHash = b.etApiHash.text?.toString()?.trim().orEmpty()
             val phone = b.etPhone.text?.toString()?.trim().orEmpty()
