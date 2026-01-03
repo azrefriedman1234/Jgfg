@@ -4,6 +4,7 @@ pluginManagement {
         mavenCentral()
         maven("https://jitpack.io")
         maven("https://artifactory.appodeal.com/appodeal-public")
+        flatDir { dirs("app/libs") }
     }
 }
 dependencyResolutionManagement {
@@ -13,6 +14,7 @@ dependencyResolutionManagement {
         mavenCentral()
         maven("https://jitpack.io")
         maven("https://artifactory.appodeal.com/appodeal-public")
+        flatDir { dirs("app/libs") }
     }
 }
 rootProject.name = "PasiflonetMobile"

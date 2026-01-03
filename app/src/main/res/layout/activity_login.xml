@@ -3,180 +3,160 @@
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:fillViewport="true"
-    android:background="@color/md_theme_background">
+    android:fillViewport="true">
 
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="vertical"
-        android:padding="18dp">
+        android:padding="16dp">
 
         <TextView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="פסיפלונט מובייל"
-            android:textColor="@android:color/white"
+            android:text="פסיפלונט מובייל - התחברות"
             android:textSize="22sp"
             android:textStyle="bold"
             android:paddingBottom="12dp" />
 
-        <!-- API ID -->
         <com.google.android.material.textfield.TextInputLayout
+            style="@style/Widget.Material3.TextInputLayout.OutlinedBox"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:hint="API ID"
-            app:boxBackgroundMode="outline"
-            app:boxStrokeColor="#66FFFFFF"
-            app:hintTextColor="#CCFFFFFF"
-            android:layout_marginTop="8dp">
-
+            android:hint="API ID">
             <com.google.android.material.textfield.TextInputEditText
                 android:id="@+id/etApiId"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:inputType="number"
-                android:textColor="@android:color/white"
-                android:textColorHint="#CCFFFFFF" />
+                android:textColor="@android:color/white"/>
         </com.google.android.material.textfield.TextInputLayout>
 
-        <!-- API HASH -->
         <com.google.android.material.textfield.TextInputLayout
+            style="@style/Widget.Material3.TextInputLayout.OutlinedBox"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:hint="API HASH"
-            app:boxBackgroundMode="outline"
-            app:boxStrokeColor="#66FFFFFF"
-            app:hintTextColor="#CCFFFFFF"
             android:layout_marginTop="10dp">
-
             <com.google.android.material.textfield.TextInputEditText
                 android:id="@+id/etApiHash"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:inputType="text"
-                android:textColor="@android:color/white"
-                android:textColorHint="#CCFFFFFF" />
+                android:textColor="@android:color/white"/>
         </com.google.android.material.textfield.TextInputLayout>
 
-        <!-- Phone -->
         <com.google.android.material.textfield.TextInputLayout
+            style="@style/Widget.Material3.TextInputLayout.OutlinedBox"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:hint="מספר טלפון (כולל +972...)"
-            app:boxBackgroundMode="outline"
-            app:boxStrokeColor="#66FFFFFF"
-            app:hintTextColor="#CCFFFFFF"
+            android:hint="מספר טלפון (כולל +972)"
             android:layout_marginTop="10dp">
-
             <com.google.android.material.textfield.TextInputEditText
                 android:id="@+id/etPhone"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:inputType="phone"
-                android:textColor="@android:color/white"
-                android:textColorHint="#CCFFFFFF" />
+                android:textColor="@android:color/white"/>
         </com.google.android.material.textfield.TextInputLayout>
 
-        <!-- Target channel username -->
         <com.google.android.material.textfield.TextInputLayout
+            style="@style/Widget.Material3.TextInputLayout.OutlinedBox"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:hint="ערוץ יעד (@username)"
-            app:boxBackgroundMode="outline"
-            app:boxStrokeColor="#66FFFFFF"
-            app:hintTextColor="#CCFFFFFF"
             android:layout_marginTop="10dp">
-
             <com.google.android.material.textfield.TextInputEditText
                 android:id="@+id/etTargetUsername"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:inputType="text"
-                android:textColor="@android:color/white"
-                android:textColorHint="#CCFFFFFF" />
+                android:textColor="@android:color/white"/>
         </com.google.android.material.textfield.TextInputLayout>
 
-        <!-- Watermark -->
-        <com.google.android.material.button.MaterialButton
-            android:id="@+id/btnPickWatermark"
+        <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="בחר סימן מים מהגלריה"
-            android:layout_marginTop="14dp"
-            app:cornerRadius="14dp" />
+            android:layout_marginTop="12dp"
+            android:orientation="horizontal">
 
-        <TextView
-            android:id="@+id/tvWatermarkStatus"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="לא נטען סימן מים"
-            android:textColor="#CCFFFFFF"
-            android:paddingTop="6dp"
-            android:paddingBottom="10dp" />
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btnPickWatermark"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="בחר סימן מים" />
 
-        <!-- Send code -->
+            <TextView
+                android:id="@+id/tvWatermarkHint"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="סימן מים: לא נבחר"
+                android:paddingStart="12dp"
+                android:gravity="center_vertical" />
+        </LinearLayout>
+
         <com.google.android.material.button.MaterialButton
             android:id="@+id/btnSendCode"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:text="שלח קוד אימות"
-            app:cornerRadius="14dp" />
+            android:layout_marginTop="14dp"/>
 
-        <!-- Code box (hidden until send code) -->
+        <!-- קוד אימות -->
         <LinearLayout
             android:id="@+id/boxCode"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:orientation="vertical"
-            android:layout_marginTop="14dp"
-            android:visibility="visible">
+            android:layout_marginTop="12dp"
+            android:visibility="gone">
 
             <com.google.android.material.textfield.TextInputLayout
+                style="@style/Widget.Material3.TextInputLayout.OutlinedBox"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:hint="קוד אימות"
-                app:boxBackgroundMode="outline"
-                app:boxStrokeColor="#66FFFFFF"
-                app:hintTextColor="#CCFFFFFF">
-
+                android:hint="קוד אימות">
                 <com.google.android.material.textfield.TextInputEditText
                     android:id="@+id/etCode"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:inputType="number"
-                    android:textColor="@android:color/white"
-                    android:textColorHint="#CCFFFFFF" />
-            </com.google.android.material.textfield.TextInputLayout>
-
-            <com.google.android.material.textfield.TextInputLayout
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:hint="סיסמת אימות דו-שלבי (אם יש)"
-                app:boxBackgroundMode="outline"
-                app:boxStrokeColor="#66FFFFFF"
-                app:hintTextColor="#CCFFFFFF"
-                android:layout_marginTop="10dp">
-
-                <com.google.android.material.textfield.TextInputEditText
-                    android:id="@+id/etPassword"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:inputType="textPassword"
-                    android:textColor="@android:color/white"
-                    android:textColorHint="#CCFFFFFF" />
+                    android:textColor="@android:color/white"/>
             </com.google.android.material.textfield.TextInputLayout>
         </LinearLayout>
 
-        <!-- Login -->
+        <!-- 2FA -->
+        <LinearLayout
+            android:id="@+id/boxTwoFa"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:layout_marginTop="10dp"
+            android:visibility="gone">
+
+            <com.google.android.material.textfield.TextInputLayout
+                style="@style/Widget.Material3.TextInputLayout.OutlinedBox"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:hint="סיסמת אימות דו-שלבי (אם צריך)">
+                <com.google.android.material.textfield.TextInputEditText
+                    android:id="@+id/etTwoFa"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:inputType="textPassword"
+                    android:textColor="@android:color/white"/>
+            </com.google.android.material.textfield.TextInputLayout>
+        </LinearLayout>
+
         <com.google.android.material.button.MaterialButton
             android:id="@+id/btnLogin"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:text="התחברות"
             android:layout_marginTop="12dp"
-            android:visibility="visible"
-            app:cornerRadius="14dp" />
+            android:visibility="gone"/>
 
     </LinearLayout>
 </ScrollView>
