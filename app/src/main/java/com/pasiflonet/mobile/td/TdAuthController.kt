@@ -45,7 +45,6 @@ class TdAuthController(
             deviceModel = android.os.Build.MODEL ?: "Android"
             systemVersion = android.os.Build.VERSION.RELEASE ?: "0"
             applicationVersion = "1.0"
-            enableStorageOptimizer = true
         }
 
         TdLibManager.send(req) { obj ->
