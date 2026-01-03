@@ -5,19 +5,17 @@
     android:id="@+id/root"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:padding="12dp">
+    android:padding="10dp">
 
-    <!-- LEFT: Tall preview (top-to-bottom) -->
+    <!-- LEFT: tall preview -->
     <FrameLayout
         android:id="@+id/previewFrame"
         android:layout_width="0dp"
         android:layout_height="0dp"
-        android:background="@android:color/black"
-        app:layout_constraintWidth_percent="0.45"
-        app:layout_constraintTop_toTopOf="parent"
-        app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintEnd_toStartOf="@id/rightPanel"
+        app:layout_constraintTop_toTopOf="parent"
+        app:layout_constraintBottom_toBottomOf="parent"
         android:layout_marginEnd="10dp">
 
         <ImageView
@@ -27,18 +25,24 @@
             android:adjustViewBounds="true"
             android:scaleType="fitCenter"
             android:contentDescription="@null" />
+
+        <!-- Blur overlay -->
         <com.pasiflonet.mobile.ui.BlurOverlayView
             android:id="@+id/blurOverlay"
             android:layout_width="match_parent"
             android:layout_height="match_parent" />
 
-
-        <!-- Blur overlay draws rectangles -->
-        
+        <!-- Draggable watermark overlay -->
+        <ImageView
+            android:id="@+id/ivWatermarkOverlay"
+            android:layout_width="140dp"
+            android:layout_height="140dp"
+            android:visibility="gone"
+            android:contentDescription="@null" />
 
     </FrameLayout>
 
-    <!-- RIGHT: Editor / buttons -->
+    <!-- RIGHT: editor & buttons -->
     <LinearLayout
         android:id="@+id/rightPanel"
         android:layout_width="0dp"
@@ -66,11 +70,11 @@
                 android:id="@+id/etCaption"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:minLines="5"
+                android:minLines="4"
                 android:gravity="top|start"
-                android:hint="טקסט לשליחה..."
-                android:textColor="@android:color/white"
-                android:textColorHint="@android:color/darker_gray"/>
+                android:hint="טקסט / כיתוב"
+                android:textColorHint="#88FFFFFF"
+                android:textColor="#FFFFFF" />
         </com.google.android.material.textfield.TextInputLayout>
 
         <LinearLayout
@@ -84,7 +88,7 @@
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
-                android:text="לוגו/סימן מים" />
+                android:text="סימן מים" />
 
             <Button
                 android:id="@+id/btnBlur"
@@ -95,36 +99,19 @@
                 android:text="טשטוש" />
         </LinearLayout>
 
-        <LinearLayout
+        <Button
+            android:id="@+id/btnTranslate"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:orientation="horizontal"
-            android:layout_marginTop="8dp">
+            android:layout_marginTop="8dp"
+            android:text="תרגום (בקרוב)" />
 
-            <Button
-                android:id="@+id/btnTranslate"
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:text="תרגום" />
-
-            <Button
-                android:id="@+id/btnSend"
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:layout_marginStart="8dp"
-                android:text="שלח" />
-        </LinearLayout>
-
-        <TextView
-            android:id="@+id/tvHint"
+        <Button
+            android:id="@+id/btnSend"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:paddingTop="10dp"
-            android:text="טיפ: לחץ 'טשטוש' ואז גרור מלבן על התצוגה המקדימה (לתמונות)."
-            android:textSize="12sp"
-            android:alpha="0.7"/>
+            android:layout_marginTop="12dp"
+            android:text="שלח" />
 
     </LinearLayout>
 

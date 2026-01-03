@@ -5,30 +5,21 @@ import android.graphics.*
 import android.util.AttributeSet
 import android.view.MotionEvent
 import android.view.View
+import kotlin.math.abs
 import kotlin.math.max
 import kotlin.math.min
 
-class BlurOverlayView @JvmOverloads constructor(
-    context: Context,
-    attrs: AttributeSet? = null
-) : View(context, attrs) {
+class BlurOverlayView(context: Context, attrs: AttributeSet? = null) : View(context, attrs) {
 
-    /** האם מותר לעבוד (למשל רק לתמונות) */
-    var enabledForImage: Boolean = false
-        private set
-
-    /** מצב ציור מלבני טשטוש */
     var blurMode: Boolean = false
+    var enabledForImage: Boolean = false
 
-    /** רשימת מלבנים (ביחידות של ה-View) */
+    var onRectFinished: ((RectF) -> Unit)? = null
+
     private val rects = mutableListOf<RectF>()
-
     private var downX = 0f
     private var downY = 0f
     private var curRect: RectF? = null
-
-    /** Callback כאשר המשתמש סיים מלבן */
-    var onRectFinalized: ((RectF) -> Unit)? = null
 
     private val strokePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         style = Paint.Style.STROKE
@@ -40,26 +31,6 @@ class BlurOverlayView @JvmOverloads constructor(
         style = Paint.Style.FILL
         color = Color.argb(60, 0, 200, 255)
     }
-
-    fun setEnabledForImage(v: Boolean) {
-        enabledForImage = v
-        if (!v) {
-            blurMode = false
-            rects.clear()
-            curRect = null
-            invalidate()
-        }
-    }
-
-    fun clearRects() {
-        rects.clear()
-        curRect = null
-        invalidate()
-    }
-
-
-    fun getRects(): List<RectF> = rects.toList()
-
 
     override fun onDraw(canvas: Canvas) {
         super.onDraw(canvas)
@@ -81,34 +52,42 @@ class BlurOverlayView @JvmOverloads constructor(
                 downX = event.x
                 downY = event.y
                 curRect = RectF(downX, downY, downX, downY)
-                parent?.requestDisallowInterceptTouchEvent(true)
                 invalidate()
                 return true
             }
             MotionEvent.ACTION_MOVE -> {
-                val x = event.x
-                val y = event.y
-                curRect = RectF(
-                    min(downX, x),
-                    min(downY, y),
-                    max(downX, x),
-                    max(downY, y)
-                )
+                curRect?.let {
+                    it.right = event.x
+                    it.bottom = event.y
+                }
                 invalidate()
                 return true
             }
-            MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
-                val r = curRect
+            MotionEvent.ACTION_UP -> {
+                val r = curRect ?: return true
                 curRect = null
-                if (r != null && r.width() > 12f && r.height() > 12f) {
-                    rects.add(r)
-                    onRectFinalized?.invoke(r)
+
+                val norm = RectF(
+                    min(r.left, r.right),
+                    min(r.top, r.bottom),
+                    max(r.left, r.right),
+                    max(r.top, r.bottom)
+                )
+
+                if (abs(norm.width()) > 12 && abs(norm.height()) > 12) {
+                    rects.add(norm)
+                    onRectFinished?.invoke(norm)
                 }
                 invalidate()
-                parent?.requestDisallowInterceptTouchEvent(false)
                 return true
             }
         }
-        return false
+        return super.onTouchEvent(event)
+    }
+
+    fun clearAll() {
+        rects.clear()
+        curRect = null
+        invalidate()
     }
 }
