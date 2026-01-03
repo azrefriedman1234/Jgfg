@@ -1,5 +1,7 @@
 package com.pasiflonet.mobile
 
+import com.pasiflonet.mobile.data.AppPrefs
+
 import android.app.Application
 import androidx.work.Configuration
 import com.pasiflonet.mobile.td.TdLibManager
@@ -9,6 +11,7 @@ class PasiflonetApp : Application(), Configuration.Provider {
 
     override fun onCreate() {
         super.onCreate()
+        AppPrefs.init(applicationContext)
         TdLibManager.init(this)
 
         // קריטי: ליצור client כבר כאן כדי לקבל authState מיד בכניסה השנייה
