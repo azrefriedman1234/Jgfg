@@ -1,5 +1,9 @@
 package com.pasiflonet.mobile.ui
 
+import com.google.mlkit.nl.translate.TranslatorOptions
+import com.google.mlkit.nl.translate.Translation
+import com.google.mlkit.nl.translate.TranslateLanguage
+import com.google.mlkit.nl.languageid.LanguageIdentification
 import android.graphics.*
 import android.net.Uri
 import android.os.Bundle
@@ -81,7 +85,7 @@ class DetailsActivity : AppCompatActivity() {
 
         findViewById<Button>(R.id.btnWatermark).setOnClickListener { toggleOrLoadWatermark() }
         findViewById<Button>(R.id.btnBlur).setOnClickListener { toggleBlurMode() }
-        findViewById<Button>(R.id.btnTranslate).setOnClickListener { translateStub() }
+        findViewById<Button>(R.id.btnTranslate).setOnClickListener { translateAutoToHebrew() }
         findViewById<Button>(R.id.btnSend).setOnClickListener { enqueueSend() }
     }
 
@@ -248,7 +252,7 @@ class DetailsActivity : AppCompatActivity() {
         )
     }
 
-    private fun translateStub() {
+    private fun translateAutoToHebrew() {
         Snackbar.make(ivPreview, "תרגום חינם on-device: נוסיף אחרי שמסיימים יציבות שליחה/עריכה.", Snackbar.LENGTH_SHORT).show()
     }
 

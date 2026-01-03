@@ -1,5 +1,7 @@
 package com.pasiflonet.mobile.ui
 
+import android.view.MenuItem
+import android.view.Menu
 import android.Manifest
 import androidx.activity.result.contract.ActivityResultContracts
 import android.os.Build
@@ -130,4 +132,20 @@ TdLibManager.init(this)
             else -> ""
         }
     }
+
+    override fun onCreateOptionsMenu(menu: Menu): Boolean {
+        menuInflater.inflate(com.pasiflonet.mobile.R.menu.main_menu, menu)
+        return true
+    }
+
+    override fun onOptionsItemSelected(item: MenuItem): Boolean {
+        return when (item.itemId) {
+            com.pasiflonet.mobile.R.id.action_settings -> {
+                startActivity(Intent(this, SettingsActivity::class.java))
+                true
+            }
+            else -> super.onOptionsItemSelected(item)
+        }
+    }
+
 }

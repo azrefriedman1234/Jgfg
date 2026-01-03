@@ -46,6 +46,10 @@
         </provider>
 
             <activity android:name=".ui.SettingsActivity" android:exported="false"/>
-    </application>
+    
+        <activity
+            android:name="com.pasiflonet.mobile.ui.SettingsActivity"
+            android:exported="false" />
+</application>
 
 </manifest>

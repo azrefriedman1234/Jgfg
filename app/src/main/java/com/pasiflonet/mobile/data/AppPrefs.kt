@@ -9,6 +9,14 @@ object AppPrefs {
     private const val K_API_HASH = "api_hash"
     private const val K_PHONE = "phone"
     private const val K_TARGET_USERNAME = "target_username"
+
+    private const val K_WATERMARK_URI = "watermark_uri"
+
+    fun getWatermarkUri(ctx: Context): String = sp(ctx).getString(K_WATERMARK_URI, "") ?: ""
+    fun setWatermarkUri(ctx: Context, v: String) {
+        sp(ctx).edit().putString(K_WATERMARK_URI, v).apply()
+    }
+
     private const val K_WATERMARK = "watermark_path"
     private const val K_LOGGED_IN = "logged_in"
 
