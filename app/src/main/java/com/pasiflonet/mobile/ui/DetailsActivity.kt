@@ -30,7 +30,28 @@ import kotlin.math.min
 class DetailsActivity : AppCompatActivity() {
 
     companion object {
-        const val EXTRA_SRC_CHAT_ID = "src_chat_id"
+        
+
+        @JvmStatic
+        fun start(
+            ctx: android.content.Context,
+            srcChatId: Long,
+            srcMsgId: Long,
+            text: String,
+            mediaUri: String? = null,
+            mediaMime: String? = null
+        ) {
+            val i = android.content.Intent(ctx, DetailsActivity::class.java).apply {
+                putExtra(EXTRA_SRC_CHAT_ID, srcChatId)
+                putExtra(EXTRA_SRC_MESSAGE_ID, srcMsgId)
+                putExtra(EXTRA_TEXT, text)
+                if (!mediaUri.isNullOrBlank()) putExtra(EXTRA_MEDIA_URI, mediaUri)
+                if (!mediaMime.isNullOrBlank()) putExtra(EXTRA_MEDIA_MIME, mediaMime)
+            }
+            ctx.startActivity(i)
+        }
+
+const val EXTRA_SRC_CHAT_ID = "src_chat_id"
         const val EXTRA_SRC_MESSAGE_ID = "src_message_id"
         const val EXTRA_TEXT = "text"
         const val EXTRA_MEDIA_URI = "media_uri"     // optional content://
