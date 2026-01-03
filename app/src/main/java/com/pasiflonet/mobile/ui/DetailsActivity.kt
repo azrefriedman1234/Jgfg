@@ -1,15 +1,14 @@
 package com.pasiflonet.mobile.ui
 
-import com.google.mlkit.nl.translate.TranslatorOptions
-import com.google.mlkit.nl.translate.Translation
-import com.google.mlkit.nl.translate.TranslateLanguage
-import com.google.mlkit.nl.languageid.LanguageIdentification
+import android.content.Context
+import android.content.Intent
 import android.graphics.*
+import android.media.MediaMetadataRetriever
 import android.net.Uri
 import android.os.Bundle
+import android.util.Base64
 import android.view.MotionEvent
 import android.view.View
-import android.widget.Button
 import android.widget.ImageView
 import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
@@ -17,12 +16,14 @@ import androidx.work.Data
 import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.WorkManager
 import com.google.android.material.snackbar.Snackbar
-import com.google.android.material.textfield.TextInputEditText
+import com.google.mlkit.nl.languageid.LanguageIdentification
+import com.google.mlkit.nl.translate.TranslateLanguage
+import com.google.mlkit.nl.translate.Translation
+import com.google.mlkit.nl.translate.Translator
+import com.google.mlkit.nl.translate.TranslatorOptions
 import com.pasiflonet.mobile.R
 import com.pasiflonet.mobile.data.AppPrefs
 import com.pasiflonet.mobile.worker.SendWorker
-import java.io.File
-import java.io.FileOutputStream
 import kotlin.math.abs
 import kotlin.math.max
 import kotlin.math.min
@@ -30,112 +31,153 @@ import kotlin.math.min
 class DetailsActivity : AppCompatActivity() {
 
     companion object {
-        
-
-        @JvmStatic
-        fun start(
-            ctx: android.content.Context,
-            srcChatId: Long,
-            srcMsgId: Long,
-            text: String,
-            mediaUri: String? = null,
-            mediaMime: String? = null
-        ) {
-            val i = android.content.Intent(ctx, DetailsActivity::class.java).apply {
-                putExtra(EXTRA_SRC_CHAT_ID, srcChatId)
-                putExtra(EXTRA_SRC_MESSAGE_ID, srcMsgId)
-                putExtra(EXTRA_TEXT, text)
-                if (!mediaUri.isNullOrBlank()) putExtra(EXTRA_MEDIA_URI, mediaUri)
-                if (!mediaMime.isNullOrBlank()) putExtra(EXTRA_MEDIA_MIME, mediaMime)
-            }
-            ctx.startActivity(i)
-        }
-
-const val EXTRA_SRC_CHAT_ID = "src_chat_id"
+        const val EXTRA_SRC_CHAT_ID = "src_chat_id"
         const val EXTRA_SRC_MESSAGE_ID = "src_message_id"
         const val EXTRA_TEXT = "text"
-        const val EXTRA_MEDIA_URI = "media_uri"     // optional content://
-        const val EXTRA_MEDIA_MIME = "media_mime"   // optional
+        const val EXTRA_MEDIA_URI = "media_uri"
+        const val EXTRA_MEDIA_MIME = "media_mime"
+        const val EXTRA_MINITHUMB_B64 = "mini_thumb_b64"
+
+        fun start(
+            ctx: Context,
+            chatId: Long,
+            msgId: Long,
+            text: String,
+            mediaUri: String? = null,
+            mediaMime: String? = null,
+            miniThumbB64: String? = null
+        ) {
+            val i = Intent(ctx, DetailsActivity::class.java)
+            i.putExtra(EXTRA_SRC_CHAT_ID, chatId)
+            i.putExtra(EXTRA_SRC_MESSAGE_ID, msgId)
+            i.putExtra(EXTRA_TEXT, text)
+            if (!mediaUri.isNullOrBlank()) i.putExtra(EXTRA_MEDIA_URI, mediaUri)
+            if (!mediaMime.isNullOrBlank()) i.putExtra(EXTRA_MEDIA_MIME, mediaMime)
+            if (!miniThumbB64.isNullOrBlank()) i.putExtra(EXTRA_MINITHUMB_B64, miniThumbB64)
+            ctx.startActivity(i)
+        }
     }
 
     private lateinit var ivPreview: ImageView
-    private lateinit var blurOverlay: BlurOverlayView
     private lateinit var ivWatermarkOverlay: ImageView
+    private lateinit var blurOverlay: BlurOverlayView
     private lateinit var tvMeta: TextView
-    private lateinit var etCaption: TextInputEditText
+    private lateinit var etCaption: com.google.android.material.textfield.TextInputEditText
 
     private var srcChatId: Long = 0L
     private var srcMsgId: Long = 0L
 
     private var mediaUri: Uri? = null
     private var mediaMime: String? = null
+    private var miniThumbB64: String? = null
 
-    private var originalBitmap: Bitmap? = null
+    // for images
     private var workingBitmap: Bitmap? = null
+
+    // watermark drag state
+    private var wmDragging = false
+    private var wmDx = 0f
+    private var wmDy = 0f
+
+    private val langId by lazy { LanguageIdentification.getClient() }
+    private var translator: Translator? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_details)
 
         ivPreview = findViewById(R.id.ivPreview)
-        blurOverlay = findViewById(R.id.blurOverlay)
         ivWatermarkOverlay = findViewById(R.id.ivWatermarkOverlay)
+        blurOverlay = findViewById(R.id.blurOverlay)
         tvMeta = findViewById(R.id.tvMeta)
         etCaption = findViewById(R.id.etCaption)
 
         srcChatId = intent.getLongExtra(EXTRA_SRC_CHAT_ID, 0L)
         srcMsgId = intent.getLongExtra(EXTRA_SRC_MESSAGE_ID, 0L)
-        val text = intent.getStringExtra(EXTRA_TEXT).orEmpty()
-
         mediaMime = intent.getStringExtra(EXTRA_MEDIA_MIME)
+        miniThumbB64 = intent.getStringExtra(EXTRA_MINITHUMB_B64)
         mediaUri = intent.getStringExtra(EXTRA_MEDIA_URI)?.takeIf { it.isNotBlank() }?.let { Uri.parse(it) }
 
+        val text = intent.getStringExtra(EXTRA_TEXT).orEmpty()
         etCaption.setText(text)
 
         tvMeta.text = buildMetaString()
 
+        setupWatermarkOverlayDrag()
         loadPreview()
 
-        // Blur overlay callback: apply pixelate/blur on bitmap area after a rectangle is finished
-        blurOverlay.onRectFinished = { rectOnView ->
-            applyBlurRect(rectOnView)
-        }
+        findViewById<View>(R.id.btnWatermark).setOnClickListener { onWatermarkClick() }
+        findViewById<View>(R.id.btnBlur).setOnClickListener { toggleBlurMode() }
+        findViewById<View>(R.id.btnTranslate).setOnClickListener { translateToHebrew() }
+        findViewById<View>(R.id.btnSend).setOnClickListener { enqueueSend() }
+    }
 
-        // Watermark overlay is draggable (when visible)
-        setupDraggableOverlay(ivWatermarkOverlay)
-
-        findViewById<Button>(R.id.btnWatermark).setOnClickListener { toggleOrLoadWatermark() }
-        findViewById<Button>(R.id.btnBlur).setOnClickListener { toggleBlurMode() }
-        findViewById<Button>(R.id.btnTranslate).setOnClickListener { translateAutoToHebrew() }
-        findViewById<Button>(R.id.btnSend).setOnClickListener { enqueueSend() }
+    override fun onDestroy() {
+        super.onDestroy()
+        runCatching { langId.close() }
+        runCatching { translator?.close() }
     }
 
     private fun buildMetaString(): String {
         val sb = StringBuilder()
         sb.append("chatId=").append(srcChatId).append(" | msgId=").append(srcMsgId)
-        sb.append("\nmedia=").append(mediaUri?.toString() ?: "none")
-        if (!mediaMime.isNullOrBlank()) sb.append(" (").append(mediaMime).append(")")
         sb.append("\nיעד: ").append(AppPrefs.getTargetUsername(this).ifBlank { "(לא הוגדר)" })
+
+        if (mediaUri != null) {
+            sb.append("\nmedia=").append(mediaUri.toString())
+            if (!mediaMime.isNullOrBlank()) sb.append(" (").append(mediaMime).append(")")
+        } else {
+            sb.append("\nmedia=none")
+        }
+        if (!miniThumbB64.isNullOrBlank()) sb.append("\nthumb=miniThumbB64")
         return sb.toString()
     }
 
     private fun loadPreview() {
-        val uri = mediaUri
-        if (uri == null) {
-            ivPreview.setImageResource(android.R.drawable.ic_menu_report_image)
-            blurOverlay.enabledForImage = false
+        // 1) If we have mediaUri -> try image first
+        mediaUri?.let { uri ->
+            val bmp = readBitmap(uri)
+            if (bmp != null) {
+                workingBitmap = bmp.copy(Bitmap.Config.ARGB_8888, true)
+                ivPreview.setImageBitmap(workingBitmap)
+                blurOverlay.setEnabledForImage(true)
+                showWatermarkOverlayIfConfigured()
+                return
+            }
+
+            // Not an image -> try video frame
+            val frame = readVideoFrame(uri)
+            if (frame != null) {
+                ivPreview.setImageBitmap(frame)
+                blurOverlay.setEnabledForImage(false) // video blur done in worker
+                showWatermarkOverlayIfConfigured()
+                return
+            }
+
+            ivPreview.setImageResource(android.R.drawable.ic_media_play)
+            blurOverlay.setEnabledForImage(false)
+            showWatermarkOverlayIfConfigured()
             return
         }
 
-        val bmp = readBitmap(uri)
-        if (bmp != null) {
-            originalBitmap = bmp
-            workingBitmap = bmp.copy(Bitmap.Config.ARGB_8888, true)
-            ivPreview.setImageBitmap(workingBitmap)
-            blurOverlay.enabledForImage = true
+        // 2) No mediaUri -> fallback to miniThumb
+        val thumb = decodeMiniThumb(miniThumbB64)
+        if (thumb != null) {
+            ivPreview.setImageBitmap(thumb)
         } else {
-            ivPreview.setImageResource(android.R.drawable.ic_media_play)
-            blurOverlay.enabledForImage = false
+            ivPreview.setImageResource(android.R.drawable.ic_menu_report_image)
+        }
+        blurOverlay.setEnabledForImage(false)
+        showWatermarkOverlayIfConfigured()
+    }
+
+    private fun decodeMiniThumb(b64: String?): Bitmap? {
+        if (b64.isNullOrBlank()) return null
+        return try {
+            val bytes = Base64.decode(b64, Base64.DEFAULT)
+            BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
+        } catch (_: Throwable) {
+            null
         }
     }
 
@@ -150,131 +192,195 @@ const val EXTRA_SRC_CHAT_ID = "src_chat_id"
         }
     }
 
-    private fun toggleOrLoadWatermark() {
-        val bmp = workingBitmap
-        if (bmp == null) {
-            Snackbar.make(ivPreview, "סימן מים עובד כרגע לתמונות (בווידאו נטפל אחר כך).", Snackbar.LENGTH_SHORT).show()
-            return
+    private fun readVideoFrame(uri: Uri): Bitmap? {
+        return try {
+            val r = MediaMetadataRetriever()
+            r.setDataSource(this, uri)
+            val b = r.getFrameAtTime(0)
+            r.release()
+            b
+        } catch (_: Throwable) {
+            null
         }
+    }
 
-        if (ivWatermarkOverlay.visibility == View.VISIBLE) {
-            ivWatermarkOverlay.visibility = View.GONE
-            Snackbar.make(ivPreview, "סימן מים: הוסתר", Snackbar.LENGTH_SHORT).show()
-            return
-        }
-
+    private fun showWatermarkOverlayIfConfigured() {
         val wmStr = AppPrefs.getWatermark(this).trim()
         if (wmStr.isBlank()) {
-            Snackbar.make(ivPreview, "לא הוגדר סימן מים בהגדרות (צריך URI מהגלריה).", Snackbar.LENGTH_LONG).show()
+            ivWatermarkOverlay.visibility = View.GONE
             return
         }
-
         val wmUri = runCatching { Uri.parse(wmStr) }.getOrNull()
         if (wmUri == null) {
-            Snackbar.make(ivPreview, "URI של סימן מים לא תקין", Snackbar.LENGTH_SHORT).show()
+            ivWatermarkOverlay.visibility = View.GONE
             return
         }
-
         val wmBmp = readBitmap(wmUri)
         if (wmBmp == null) {
-            Snackbar.make(ivPreview, "לא הצלחתי לקרוא את תמונת הסימן מים", Snackbar.LENGTH_SHORT).show()
+            ivWatermarkOverlay.visibility = View.GONE
             return
         }
-
         ivWatermarkOverlay.setImageBitmap(wmBmp)
         ivWatermarkOverlay.visibility = View.VISIBLE
 
-        // default position bottom-right (inside preview area)
+        // default position bottom-right
         ivWatermarkOverlay.post {
-            val pad = 16f
-            ivWatermarkOverlay.x = max(ivPreview.x + pad, ivPreview.x + ivPreview.width - ivWatermarkOverlay.width - pad)
-            ivWatermarkOverlay.y = max(ivPreview.y + pad, ivPreview.y + ivPreview.height - ivWatermarkOverlay.height - pad)
+            val pad = (ivWatermarkOverlay.rootView.width * 0.02f).toInt().coerceAtLeast(12)
+            ivWatermarkOverlay.x = (ivPreview.width - ivWatermarkOverlay.width - pad).toFloat().coerceAtLeast(0f)
+            ivWatermarkOverlay.y = (ivPreview.height - ivWatermarkOverlay.height - pad).toFloat().coerceAtLeast(0f)
         }
-
-        Snackbar.make(ivPreview, "✅ גרור את הסימן מים למיקום הרצוי", Snackbar.LENGTH_LONG).show()
     }
 
-    private fun toggleBlurMode() {
-        if (!blurOverlay.enabledForImage) {
-            Snackbar.make(ivPreview, "טשטוש עובד כרגע לתמונות. בווידאו נטפל אחר כך.", Snackbar.LENGTH_SHORT).show()
+    private fun setupWatermarkOverlayDrag() {
+        ivWatermarkOverlay.setOnTouchListener { v, ev ->
+            if (ivWatermarkOverlay.visibility != View.VISIBLE) return@setOnTouchListener false
+            when (ev.actionMasked) {
+                MotionEvent.ACTION_DOWN -> {
+                    wmDragging = true
+                    wmDx = v.x - ev.rawX
+                    wmDy = v.y - ev.rawY
+                    true
+                }
+                MotionEvent.ACTION_MOVE -> {
+                    if (!wmDragging) return@setOnTouchListener false
+                    v.x = ev.rawX + wmDx
+                    v.y = ev.rawY + wmDy
+                    true
+                }
+                MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+                    wmDragging = false
+                    true
+                }
+                else -> false
+            }
+        }
+    }
+
+    private fun onWatermarkClick() {
+        val bmp = workingBitmap
+        if (bmp == null) {
+            Snackbar.make(ivPreview, "סימן מים לתמונות עובד עכשיו. לווידאו זה יוחל בשליחה (FFmpeg).", Snackbar.LENGTH_LONG).show()
+            showWatermarkOverlayIfConfigured()
             return
         }
-        blurOverlay.blurMode = !blurOverlay.blurMode
-        Snackbar.make(
-            ivPreview,
-            if (blurOverlay.blurMode) "מצב טשטוש: גרור מלבן על התצוגה" else "מצב טשטוש: כבוי",
-            Snackbar.LENGTH_SHORT
-        ).show()
-    }
 
-    private fun applyBlurRect(rectOnView: RectF) {
-        val base = workingBitmap ?: return
-        // Map rect from view coords to bitmap coords (approx using fitCenter scale)
-        val mapped = mapViewRectToBitmapRect(rectOnView, ivPreview, base) ?: return
+        val wmDrawable = ivWatermarkOverlay.drawable
+        if (wmDrawable == null) {
+            Snackbar.make(ivPreview, "לא הוגדר לוגו/סימן מים בהגדרות", Snackbar.LENGTH_SHORT).show()
+            return
+        }
 
-        val out = base.copy(Bitmap.Config.ARGB_8888, true)
+        val wmBmp = drawableToBitmap(wmDrawable) ?: run {
+            Snackbar.make(ivPreview, "לא הצלחתי לקרוא את תמונת הלוגו", Snackbar.LENGTH_SHORT).show()
+            return
+        }
 
-        // Pixelate: crop -> downscale -> upscale back
-        val x0 = mapped.left.coerceIn(0, out.width - 1)
-        val y0 = mapped.top.coerceIn(0, out.height - 1)
-        val x1 = mapped.right.coerceIn(x0 + 1, out.width)
-        val y1 = mapped.bottom.coerceIn(y0 + 1, out.height)
-
-        val w = (x1 - x0).coerceAtLeast(2)
-        val h = (y1 - y0).coerceAtLeast(2)
-
-        val region = Bitmap.createBitmap(out, x0, y0, w, h)
-        val downW = max(8, w / 18)
-        val downH = max(8, h / 18)
-        val small = Bitmap.createScaledBitmap(region, downW, downH, true)
-        val pix = Bitmap.createScaledBitmap(small, w, h, false)
-
+        val out = bmp.copy(Bitmap.Config.ARGB_8888, true)
         val c = Canvas(out)
-        c.drawBitmap(pix, x0.toFloat(), y0.toFloat(), null)
+
+        // map overlay view position -> bitmap coordinates (approx using scale ratios)
+        val pos = overlayToBitmapXY(out, wmBmp)
+        val x = pos.first
+        val y = pos.second
+
+        val targetW = (out.width * 0.22f).toInt().coerceAtLeast(48)
+        val scale = targetW.toFloat() / wmBmp.width.toFloat()
+        val targetH = (wmBmp.height * scale).toInt().coerceAtLeast(48)
+        val wmScaled = Bitmap.createScaledBitmap(wmBmp, targetW, targetH, true)
+
+        val p = Paint(Paint.ANTI_ALIAS_FLAG).apply { alpha = 220 }
+        c.drawBitmap(wmScaled, x.toFloat(), y.toFloat(), p)
 
         workingBitmap = out
         ivPreview.setImageBitmap(out)
-        Snackbar.make(ivPreview, "✅ טשטוש הוחל", Snackbar.LENGTH_SHORT).show()
+        Snackbar.make(ivPreview, "✅ סימן מים הוחל (לתמונה)", Snackbar.LENGTH_SHORT).show()
     }
 
-    private fun mapViewRectToBitmapRect(r: RectF, iv: ImageView, bmp: Bitmap): Rect? {
-        val d = iv.drawable ?: return null
+    private fun overlayToBitmapXY(base: Bitmap, wmBmp: Bitmap): Pair<Int, Int> {
+        // This is a pragmatic mapping: use view ratios within ivPreview bounds.
+        val vx = ivWatermarkOverlay.x.coerceAtLeast(0f)
+        val vy = ivWatermarkOverlay.y.coerceAtLeast(0f)
+        val vw = ivPreview.width.coerceAtLeast(1)
+        val vh = ivPreview.height.coerceAtLeast(1)
 
-        // ImageView image matrix mapping
-        val m = Matrix()
-        iv.imageMatrix.invert(m)
+        val rx = (vx / vw.toFloat()).coerceIn(0f, 1f)
+        val ry = (vy / vh.toFloat()).coerceIn(0f, 1f)
 
-        val pts = floatArrayOf(r.left, r.top, r.right, r.bottom)
-        m.mapPoints(pts)
-
-        val left = min(pts[0], pts[2]).toInt()
-        val top = min(pts[1], pts[3]).toInt()
-        val right = max(pts[0], pts[2]).toInt()
-        val bottom = max(pts[1], pts[3]).toInt()
-
-        // Clamp to drawable size then to bitmap size (usually same if bitmap drawable)
-        val dw = d.intrinsicWidth.takeIf { it > 0 } ?: bmp.width
-        val dh = d.intrinsicHeight.takeIf { it > 0 } ?: bmp.height
-
-        val cl = left.coerceIn(0, dw - 1)
-        val ct = top.coerceIn(0, dh - 1)
-        val cr = right.coerceIn(cl + 1, dw)
-        val cb = bottom.coerceIn(ct + 1, dh)
-
-        // If drawable != bitmap size, scale to bitmap
-        val sx = bmp.width.toFloat() / dw.toFloat()
-        val sy = bmp.height.toFloat() / dh.toFloat()
-
-        return Rect(
-            (cl * sx).toInt().coerceIn(0, bmp.width - 1),
-            (ct * sy).toInt().coerceIn(0, bmp.height - 1),
-            (cr * sx).toInt().coerceIn(1, bmp.width),
-            (cb * sy).toInt().coerceIn(1, bmp.height)
-        )
+        val bx = (rx * base.width).toInt()
+        val by = (ry * base.height).toInt()
+        return Pair(bx, by)
     }
 
-    private fun translateAutoToHebrew() {
-        Snackbar.make(ivPreview, "תרגום חינם on-device: נוסיף אחרי שמסיימים יציבות שליחה/עריכה.", Snackbar.LENGTH_SHORT).show()
+    private fun drawableToBitmap(d: android.graphics.drawable.Drawable): Bitmap? {
+        return try {
+            val b = Bitmap.createBitmap(
+                max(1, d.intrinsicWidth),
+                max(1, d.intrinsicHeight),
+                Bitmap.Config.ARGB_8888
+            )
+            val c = Canvas(b)
+            d.setBounds(0, 0, c.width, c.height)
+            d.draw(c)
+            b
+        } catch (_: Throwable) { null }
+    }
+
+    private fun toggleBlurMode() {
+        if (workingBitmap == null) {
+            Snackbar.make(ivPreview, "טשטוש ידני לתמונה עובד עכשיו. לווידאו — סמן מלבנים ואז בשליחה זה ייטשטש.", Snackbar.LENGTH_LONG).show()
+            // allow marking even if video (for worker)
+            blurOverlay.allowRectangles = true
+            blurOverlay.blurMode = !blurOverlay.blurMode
+            return
+        }
+
+        blurOverlay.setEnabledForImage(true)
+        blurOverlay.blurMode = !blurOverlay.blurMode
+        Snackbar.make(ivPreview, if (blurOverlay.blurMode) "מצב טשטוש: גרור מלבן" else "מצב טשטוש: כבוי", Snackbar.LENGTH_SHORT).show()
+    }
+
+    private fun translateToHebrew() {
+        val src = etCaption.text?.toString().orEmpty().trim()
+        if (src.isBlank()) {
+            Snackbar.make(ivPreview, "אין טקסט לתרגום", Snackbar.LENGTH_SHORT).show()
+            return
+        }
+
+        // detect language first
+        Snackbar.make(ivPreview, "🔎 מזהה שפה...", Snackbar.LENGTH_SHORT).show()
+        langId.identifyLanguage(src)
+            .addOnSuccessListener { langCode ->
+                val srcLang = TranslateLanguage.fromLanguageTag(langCode) ?: TranslateLanguage.ENGLISH
+                val tgtLang = TranslateLanguage.HEBREW
+
+                val opts = TranslatorOptions.Builder()
+                    .setSourceLanguage(srcLang)
+                    .setTargetLanguage(tgtLang)
+                    .build()
+
+                translator?.close()
+                translator = Translation.getClient(opts)
+                val tr = translator!!
+
+                Snackbar.make(ivPreview, "⬇️ מוריד מודל תרגום (פעם ראשונה) ומתרגם...", Snackbar.LENGTH_LONG).show()
+                tr.downloadModelIfNeeded()
+                    .addOnSuccessListener {
+                        tr.translate(src)
+                            .addOnSuccessListener { out ->
+                                etCaption.setText(out)
+                                Snackbar.make(ivPreview, "✅ תורגם לעברית", Snackbar.LENGTH_SHORT).show()
+                            }
+                            .addOnFailureListener { e ->
+                                Snackbar.make(ivPreview, "❌ תרגום נכשל: ${e.message}", Snackbar.LENGTH_LONG).show()
+                            }
+                    }
+                    .addOnFailureListener { e ->
+                        Snackbar.make(ivPreview, "❌ הורדת מודל נכשלה: ${e.message}", Snackbar.LENGTH_LONG).show()
+                    }
+            }
+            .addOnFailureListener { e ->
+                Snackbar.make(ivPreview, "❌ זיהוי שפה נכשל: ${e.message}", Snackbar.LENGTH_LONG).show()
+            }
     }
 
     private fun enqueueSend() {
@@ -284,25 +390,26 @@ const val EXTRA_SRC_CHAT_ID = "src_chat_id"
             return
         }
         if (srcChatId == 0L || srcMsgId == 0L) {
-            Snackbar.make(ivPreview, "❌ חסרים מזהים של הודעה מקורית", Snackbar.LENGTH_SHORT).show()
+            Snackbar.make(ivPreview, "❌ חסרים מזהי מקור", Snackbar.LENGTH_SHORT).show()
             return
         }
 
         val text = etCaption.text?.toString().orEmpty()
+        val wm = AppPrefs.getWatermark(this).trim()
 
-        // If we have an edited image -> save to cache and send as media
-        var mediaPath: String? = null
-        if (workingBitmap != null && mediaUri != null) {
-            mediaPath = saveWorkingBitmapToCache()
-        }
+        val rects = blurOverlay.exportRectsNormalized()
+        val rectsStr = rects.joinToString(";") { "${it.left},${it.top},${it.right},${it.bottom}" }
 
         val data = Data.Builder()
             .putLong(SendWorker.KEY_SRC_CHAT_ID, srcChatId)
             .putLong(SendWorker.KEY_SRC_MESSAGE_ID, srcMsgId)
             .putString(SendWorker.KEY_TARGET_USERNAME, target)
             .putString(SendWorker.KEY_TEXT, text)
-            .putBoolean(SendWorker.KEY_SEND_WITH_MEDIA, !mediaPath.isNullOrBlank())
-            .putString(SendWorker.KEY_MEDIA_PATH, mediaPath ?: "")
+            .putBoolean(SendWorker.KEY_SEND_WITH_MEDIA, mediaUri != null)
+            .putString(SendWorker.KEY_MEDIA_URI, mediaUri?.toString().orEmpty())
+            .putString(SendWorker.KEY_MEDIA_MIME, mediaMime.orEmpty())
+            .putString(SendWorker.KEY_WATERMARK_URI, wm)
+            .putString(SendWorker.KEY_BLUR_RECTS, rectsStr)
             .build()
 
         val req = OneTimeWorkRequestBuilder<SendWorker>()
@@ -310,47 +417,106 @@ const val EXTRA_SRC_CHAT_ID = "src_chat_id"
             .build()
 
         WorkManager.getInstance(applicationContext).enqueue(req)
-        Snackbar.make(ivPreview, "✅ נשלח לתור שליחה. בדוק בערוץ יעד.", Snackbar.LENGTH_LONG).show()
+        Snackbar.make(ivPreview, "✅ נכנס לתור שליחה. בדוק בערוץ יעד.", Snackbar.LENGTH_LONG).show()
     }
 
-    private fun saveWorkingBitmapToCache(): String? {
-        return try {
-            val bmp = workingBitmap ?: return null
-            val f = File(cacheDir, "pasiflonet_send_${System.currentTimeMillis()}.jpg")
-            FileOutputStream(f).use { out ->
-                bmp.compress(Bitmap.CompressFormat.JPEG, 92, out)
-            }
-            f.absolutePath
-        } catch (_: Throwable) {
-            null
+    /**
+     * Overlay rectangles:
+     * - for images: can be applied later (אם תרצה ניישם גם על תמונה בפועל)
+     * - for video: passed to worker as normalized rects for ffmpeg blur
+     */
+    class BlurOverlayView(context: android.content.Context, attrs: android.util.AttributeSet?) : View(context, attrs) {
+
+        var blurMode: Boolean = false
+        var enabledForImage: Boolean = false
+            private set
+
+        var allowRectangles: Boolean = true
+
+        private val rects = mutableListOf<RectF>()
+        private var downX = 0f
+        private var downY = 0f
+        private var curRect: RectF? = null
+
+        private val strokePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            style = Paint.Style.STROKE
+            strokeWidth = 4f
+            color = Color.argb(220, 0, 200, 255)
         }
-    }
+        private val fillPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            style = Paint.Style.FILL
+            color = Color.argb(60, 0, 200, 255)
+        }
 
-    private fun setupDraggableOverlay(v: View) {
-        v.setOnTouchListener(object : View.OnTouchListener {
-            var dX = 0f
-            var dY = 0f
-            override fun onTouch(view: View, ev: MotionEvent): Boolean {
-                if (view.visibility != View.VISIBLE) return false
-                when (ev.actionMasked) {
-                    MotionEvent.ACTION_DOWN -> {
-                        dX = view.x - ev.rawX
-                        dY = view.y - ev.rawY
-                        view.parent.requestDisallowInterceptTouchEvent(true)
-                        return true
-                    }
-                    MotionEvent.ACTION_MOVE -> {
-                        view.x = ev.rawX + dX
-                        view.y = ev.rawY + dY
-                        return true
-                    }
-                    MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
-                        view.parent.requestDisallowInterceptTouchEvent(false)
-                        return true
-                    }
-                }
-                return false
+        fun setEnabledForImage(v: Boolean) {
+            enabledForImage = v
+            if (!v) {
+                // do not clear rects: keep for video worker if user drew them
+                invalidate()
             }
-        })
+        }
+
+        fun exportRectsNormalized(): List<RectF> {
+            // normalize to view coordinates [0..1]
+            val w = width.coerceAtLeast(1).toFloat()
+            val h = height.coerceAtLeast(1).toFloat()
+            return rects.map {
+                RectF(
+                    (it.left / w).coerceIn(0f, 1f),
+                    (it.top / h).coerceIn(0f, 1f),
+                    (it.right / w).coerceIn(0f, 1f),
+                    (it.bottom / h).coerceIn(0f, 1f)
+                )
+            }
+        }
+
+        override fun onDraw(canvas: Canvas) {
+            super.onDraw(canvas)
+            for (r in rects) {
+                canvas.drawRect(r, fillPaint)
+                canvas.drawRect(r, strokePaint)
+            }
+            curRect?.let {
+                canvas.drawRect(it, fillPaint)
+                canvas.drawRect(it, strokePaint)
+            }
+        }
+
+        override fun onTouchEvent(event: MotionEvent): Boolean {
+            if (!allowRectangles) return false
+            if (!blurMode) return false
+
+            when (event.actionMasked) {
+                MotionEvent.ACTION_DOWN -> {
+                    downX = event.x
+                    downY = event.y
+                    curRect = RectF(downX, downY, downX, downY)
+                    invalidate()
+                    return true
+                }
+                MotionEvent.ACTION_MOVE -> {
+                    val r = curRect ?: return true
+                    r.left = min(downX, event.x)
+                    r.top = min(downY, event.y)
+                    r.right = max(downX, event.x)
+                    r.bottom = max(downY, event.y)
+                    invalidate()
+                    return true
+                }
+                MotionEvent.ACTION_UP -> {
+                    val r = curRect
+                    curRect = null
+                    if (r != null) {
+                        // ignore tiny
+                        if (abs(r.width()) > 10 && abs(r.height()) > 10) {
+                            rects.add(r)
+                        }
+                    }
+                    invalidate()
+                    return true
+                }
+            }
+            return false
+        }
     }
 }
