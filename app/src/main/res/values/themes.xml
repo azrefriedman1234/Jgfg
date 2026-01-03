@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources xmlns:tools="http://schemas.android.com/tools">
+    <style name="Theme.Pasiflonet" parent="Theme.MaterialComponents.DayNight.NoActionBar">
+        <item name="colorPrimary">@color/md_theme_primary</item>
+        <item name="colorPrimaryVariant">@color/md_theme_primary</item>
+        <item name="colorOnPrimary">@color/md_theme_onPrimary</item>
+        <item name="colorSecondary">@color/md_theme_secondary</item>
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:navigationBarColor">@android:color/transparent</item>
+        <item name="android:windowLightStatusBar">false</item>
+        <item name="android:windowLightNavigationBar">false</item>
+        <item name="android:forceDarkAllowed">true</item>
+<item name="materialButtonStyle">@style/Widget.Pasiflonet.Button</item>
+        <item name="textInputStyle">@style/Widget.Pasiflonet.TextInput</item>
+    </style>
+
+    <style name="Widget.Pasiflonet.Button" parent="Widget.MaterialComponents.Button">
+        <item name="cornerRadius">18dp</item>
+        <item name="android:textAllCaps">false</item>
+    </style>
+
+    <style name="Widget.Pasiflonet.TextInput" parent="Widget.MaterialComponents.TextInputLayout.OutlinedBox">
+        <item name="boxStrokeColor">@color/md_theme_primary</item>
+        <item name="boxCornerRadiusTopStart">18dp</item>
+        <item name="boxCornerRadiusTopEnd">18dp</item>
+        <item name="boxCornerRadiusBottomStart">18dp</item>
+        <item name="boxCornerRadiusBottomEnd">18dp</item>
+        <item name="hintTextColor">@color/md_theme_onSurface</item>
+    </style>
+</resources>

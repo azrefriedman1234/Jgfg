@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- Cyber-ish "P" + signal arcs -->
+    <path
+        android:fillColor="#2E6BF6"
+        android:pathData="M30,22 h24 c12,0 20,8 20,18 0,10 -8,18 -20,18 h-10 v26 h-14 z
+                          M44,36 v18 h10 c5,0 10,-3 10,-9 0,-6 -5,-9 -10,-9 z"/>
+    <path
+        android:fillColor="#00A3A3"
+        android:pathData="M73,32 a18,18 0 0 1 0,44 l-3,-6 a12,12 0 0 0 0,-32 z"/>
+    <path
+        android:fillColor="#00A3A3"
+        android:pathData="M80,26 a26,26 0 0 1 0,56 l-3,-6 a20,20 0 0 0 0,-44 z"/>
+</vector>

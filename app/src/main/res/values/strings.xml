@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">פסיפלונט מובייל</string>
+
+    <string name="login_title">התחברות לטלגרם</string>
+    <string name="api_id">API ID</string>
+    <string name="api_hash">API HASH</string>
+    <string name="phone">מספר טלפון</string>
+    <string name="send_code">שלח קוד</string>
+    <string name="code">קוד אימות</string>
+    <string name="twofa">סיסמת אימות דו־שלבי (אם נדרש)</string>
+    <string name="login">התחברות</string>
+
+    <string name="watermark_pick">ייבוא סימן מים</string>
+    <string name="target_chat">ערוץ יעד (ID מספרי)</string>
+    <string name="save_settings">שמור</string>
+
+    <string name="main_title">פסיפלונט מובייל</string>
+    <string name="btn_clear_temp">נקה זמניים</string>
+    <string name="btn_exit">סגור</string>
+
+    <string name="details">פרטים</string>
+    <string name="send">שלח הודעה</string>
+    <string name="send_with_media">שלח עם מדיה</string>
+    <string name="send_without_media">שלח בלי מדיה</string>
+    <string name="translate_auto">תרגום אוטומטי</string>
+    <string name="add_watermark">הוסף סימן מים</string>
+    <string name="add_blur">טשטוש (ציור)</string>
+    <string name="done">סיום</string>
+</resources>
