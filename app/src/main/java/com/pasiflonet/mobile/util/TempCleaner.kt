@@ -4,17 +4,15 @@ import android.content.Context
 import java.io.File
 
 object TempCleaner {
-
     fun clean(context: Context): Int {
         var deleted = 0
-
         deleted += deleteDirContents(context.cacheDir)
         context.externalCacheDir?.let { deleted += deleteDirContents(it) }
 
         val appTmp = File(context.filesDir, "pasiflonet_tmp")
         if (appTmp.exists()) deleted += deleteDirContents(appTmp)
 
-        // לא נוגעים ב-filesDir/tdlib ולא ב-filesDir/tdfiles כדי לשמור התחברות
+        // לא מוחקים: filesDir/tdlib או filesDir/tdfiles (כדי לשמור התחברות)
         return deleted
     }
 

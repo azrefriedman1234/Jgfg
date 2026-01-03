@@ -26,6 +26,9 @@ class AppPrefs(private val ctx: Context) {
         private val KEY_TARGET_CHAT_ID_CACHE = longPreferencesKey("target_chat_id_cache")
 
         private val KEY_LOGGED_IN = booleanPreferencesKey("logged_in")
+
+        // חדש: כדי לבקש הרשאה פעם ראשונה בלבד
+        private val KEY_MEDIA_PERMS_ASKED = booleanPreferencesKey("media_perms_asked")
     }
 
     val apiIdFlow: Flow<String> = ctx.dataStore.data.map { it[KEY_API_ID].orEmpty() }
@@ -38,13 +41,19 @@ class AppPrefs(private val ctx: Context) {
 
     val loggedInFlow: Flow<Boolean> = ctx.dataStore.data.map { it[KEY_LOGGED_IN] ?: false }
 
+    val mediaPermsAskedFlow: Flow<Boolean> = ctx.dataStore.data.map { it[KEY_MEDIA_PERMS_ASKED] ?: false }
+
     suspend fun saveApiId(v: String) = ctx.dataStore.edit { it[KEY_API_ID] = v }
     suspend fun saveApiHash(v: String) = ctx.dataStore.edit { it[KEY_API_HASH] = v }
     suspend fun savePhone(v: String) = ctx.dataStore.edit { it[KEY_PHONE] = v }
     suspend fun saveWatermarkUri(v: String) = ctx.dataStore.edit { it[KEY_WATERMARK_URI] = v }
+
     suspend fun saveTargetUsername(v: String) = ctx.dataStore.edit { it[KEY_TARGET_USERNAME] = v }
     suspend fun saveTargetChatIdCache(v: Long) = ctx.dataStore.edit { it[KEY_TARGET_CHAT_ID_CACHE] = v }
+
     suspend fun setLoggedIn(v: Boolean) = ctx.dataStore.edit { it[KEY_LOGGED_IN] = v }
+
+    suspend fun setMediaPermsAsked(v: Boolean) = ctx.dataStore.edit { it[KEY_MEDIA_PERMS_ASKED] = v }
 
     // -------- תאימות אחורה (כדי שלא יישבר קוד ישן) --------
     val targetChatIdFlow: Flow<Long> = targetChatIdCacheFlow
