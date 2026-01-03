@@ -20,7 +20,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var b: ActivityMainBinding
     private lateinit var adapter: MessagesAdapter
     private val started = AtomicBoolean(false)
-    private val chatIsChannel = ConcurrentHashMap<Long, Boolean>()  // סינון רק ערוצים
+    private val chatIsChannel = ConcurrentHashMap<Long, Boolean>()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -32,26 +32,24 @@ class MainActivity : AppCompatActivity() {
         TdLibManager.send(TdApi.GetAuthorizationState()) { }
 
         adapter = MessagesAdapter { row ->
-            // כפתור פרטים – נשאר כמו שהיה אצלך (אם MessageRow מכיל chatId/messageId זה עובד)
             try {
-                val i = android.content.Intent(this, DetailsActivity::class.java)
-                val cls = row::class.java
-                val chatId = cls.getDeclaredField("chatId" if true else "chatId").apply{isAccessible=true}.getLong(row)
-                val msgId  = cls.getDeclaredField("messageId" if true else "messageId").apply{isAccessible=true}.getLong(row)
-                i.putExtra("src_chat_id", chatId)
-                i.putExtra("src_message_id", msgId)
-                i.putExtra("src_text", (cls.getDeclaredField("text").apply{isAccessible=true}.get(row) ?: "").toString())
-                i.putExtra("src_type", (cls.getDeclaredField("typeLabel" if true else "text").apply{isAccessible=true}.get(row) ?: "").toString())
-                startActivity(i)
+                
+            val i = android.content.Intent(this, DetailsActivity::class.java).apply {
+                putExtra("src_chat_id", row.chatId)
+                putExtra("src_message_id", row.messageId)
+                putExtra("src_text", (row.text).toString())
+                putExtra("src_type", (row.typeLabel).toString())
+            }
+            startActivity(i)
+    
             } catch (t: Throwable) {
-                android.widget.Toast.makeText(this, "פרטים לא זמינים: " + (t.message ?: "שגיאה"), android.widget.Toast.LENGTH_LONG).show()
+                android.widget.Toast.makeText(this, "שגיאה בפרטים: " + (t.message ?: ""), android.widget.Toast.LENGTH_LONG).show()
             }
         }
 
         b.recycler.layoutManager = LinearLayoutManager(this)
         b.recycler.adapter = adapter
 
-        // כפתורים
         try {
             b.btnExit.setOnClickListener { finishAffinity() }
         } catch (_: Throwable) {}
@@ -69,7 +67,7 @@ class MainActivity : AppCompatActivity() {
 
                 if (st.constructor == TdApi.AuthorizationStateReady.CONSTRUCTOR) {
                     if (started.compareAndSet(false, true)) {
-                        adapter.clearAll() // חשוב: מתחילים נקי – רק חדש אחרי פתיחה
+                        adapter.clearAll() // חשוב: מתחילים נקי — רק חדש אחרי פתיחה
                         observeOnlyNewMessages()
                     }
                 } else {
@@ -109,11 +107,10 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun addRow(chatId: Long, msg: TdApi.Message) {
-        // בלי היסטוריה, בלי thumbs – רק טבלה מסודרת
         val row = TdMessageMapper.mapToRow(chatId, msg, null, null)
         runOnUiThread {
-            adapter.prepend(row)
-            adapter.trimTo(100)
+            adapter.prepend(row)      // חדש למעלה
+            adapter.trimTo(100)       // מוחק הכי ישן
             b.recycler.scrollToPosition(0)
         }
     }

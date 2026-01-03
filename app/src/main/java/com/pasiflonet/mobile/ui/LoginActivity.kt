@@ -11,8 +11,12 @@ import com.pasiflonet.mobile.data.AppPrefs
 import com.pasiflonet.mobile.databinding.ActivityLoginBinding
 import com.pasiflonet.mobile.td.TdAuthController
 import com.pasiflonet.mobile.td.TdLibManager
-import kotlinx.coroutines.flow.first
-import kotlinx.coroutines.launch
+import kotlinx.coroutines.
+import kotlinx.coroutines.flow.collectLatest
+flow.first
+import kotlinx.coroutines.
+import kotlinx.coroutines.flow.collectLatest
+launch
 import org.drinkless.tdlib.TdApi
 
 class LoginActivity : AppCompatActivity() {
@@ -35,7 +39,21 @@ class LoginActivity : AppCompatActivity() {
         b = ActivityLoginBinding.inflate(layoutInflater)
         setContentView(b.root)
 
-        prefs = AppPrefs(this)
+        
+        // אם כבר מחובר (TDLib READY) – לא להציג מסך התחברות שוב
+        TdLibManager.init(applicationContext)
+        TdLibManager.ensureClient()
+        TdLibManager.send(org.drinkless.tdlib.TdApi.GetAuthorizationState()) { }
+        lifecycleScope.launch {
+            TdLibManager.authState.collectLatest { st ->
+                if (st != null && st.constructor == org.drinkless.tdlib.TdApi.AuthorizationStateReady.CONSTRUCTOR) {
+                    startActivity(android.content.Intent(this@LoginActivity, MainActivity::class.java))
+                    finish()
+                }
+            }
+        }
+
+prefs = AppPrefs(this)
         TdLibManager.init(applicationContext)
         auth = TdAuthController(this, prefs, lifecycleScope)
 
