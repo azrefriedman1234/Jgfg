@@ -1,5 +1,10 @@
 package com.pasiflonet.mobile.ui
 
+import com.pasiflonet.mobile.data.AppPrefs
+import com.pasiflonet.mobile.worker.SendWorker
+import androidx.work.workDataOf
+import androidx.work.WorkManager
+import androidx.work.OneTimeWorkRequestBuilder
 import android.graphics.Bitmap
 import android.os.Bundle
 import androidx.appcompat.app.AppCompatActivity
@@ -11,7 +16,49 @@ import com.pasiflonet.mobile.util.Thumbs
 
 class DetailsActivity : AppCompatActivity() {
 
+
+    private fun readDetailsText(): String {
+        val ids = listOf("etCaption", "etMessage", "etText", "inputText")
+        for (name in ids) {
+            val id = resources.getIdentifier(name, "id", packageName)
+            if (id != 0) {
+                val v = findViewById<android.widget.TextView>(id)
+                return v.text?.toString().orEmpty()
+            }
+        }
+        return ""
+    }
     private lateinit var b: ActivityDetailsBinding
+
+    private fun readTargetUsernameFromPrefs(): String {
+        // מנסה כמה מפתחות נפוצים כדי לא להיות תלוי ב-AppPrefs שלא יציב כרגע
+        val sp = getSharedPreferences("pasiflonet", MODE_PRIVATE)
+        val keys = listOf("target_username", "targetUsername", "TARGET_USERNAME", "pref_target_username")
+        for (k in keys) {
+            val v = sp.getString(k, null)?.trim()
+            if (!v.isNullOrBlank()) return v
+        }
+        // נסה גם prefs בשם אחר
+        val sp2 = getSharedPreferences("pasiflonet_prefs", MODE_PRIVATE)
+        for (k in keys) {
+            val v = sp2.getString(k, null)?.trim()
+            if (!v.isNullOrBlank()) return v
+        }
+        return ""
+    }
+
+    private fun readCaptionText(): String {
+        // בלי להסתמך על id קבוע (כדי לא לשבור קומפילציה אם השם שונה)
+        val ids = listOf("etCaption", "etMessage", "etText", "inputText")
+        for (name in ids) {
+            val id = resources.getIdentifier(name, "id", packageName)
+            if (id != 0) {
+                val v = findViewById<android.widget.TextView>(id)
+                return v.text?.toString().orEmpty()
+            }
+        }
+        return ""
+    }
     private var blurMode = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -62,7 +109,66 @@ class DetailsActivity : AppCompatActivity() {
 
         // Send: בשלב הזה רק מאשר UI (השליחה האמיתית + ffmpeg נכניס בפקודה הבאה כדי לא לשבור קומפילציה)
         b.btnSend.setOnClickListener {
-            Snackbar.make(b.root, "✅ לחצת שלח. עכשיו נוסיף שליחה אמיתית + צריבת blur/watermark בפקודה הבאה.", Snackbar.LENGTH_LONG).show()
+            val targetUsername = AppPrefs.getTargetUsername(this).trim()
+            if (targetUsername.isBlank()) {
+                Snackbar.make(b.root, "❌ חסר ערוץ יעד (@username) במסך ההתחברות", Snackbar.LENGTH_LONG).show()
+                return@setOnClickListener
+            }
+
+            val srcChatId = intent.getLongExtra("src_chat_id", 0L)
+            val srcMsgId = intent.getLongExtra("src_message_id", 0L)
+
+            if (srcChatId == 0L || srcMsgId == 0L) {
+                Snackbar.make(b.root, "❌ חסרים src_chat_id / src_message_id", Snackbar.LENGTH_LONG).show()
+                return@setOnClickListener
+            }
+
+            val text = readDetailsText()
+
+            // תמיד שולחים דרך Worker (שם נקבע האם לשלוח מדיה/או רק טקסט)
+            val data = workDataOf(
+                SendWorker.KEY_SRC_CHAT_ID to srcChatId,
+                SendWorker.KEY_SRC_MESSAGE_ID to srcMsgId,
+                SendWorker.KEY_TARGET_USERNAME to targetUsername,
+                SendWorker.KEY_TEXT to text,
+                SendWorker.KEY_SEND_WITH_MEDIA to true
+            )
+
+            val req = OneTimeWorkRequestBuilder<SendWorker>()
+                .setInputData(data)
+                .addTag("send_worker")
+                .build()
+
+            WorkManager.getInstance(applicationContext).enqueue(req)
+            Snackbar.make(b.root, "✅ נשלח לתור שליחה…", Snackbar.LENGTH_SHORT).show()
+        }
+
+            val srcChatId = intent.getLongExtra("src_chat_id", 0L)
+            val srcMsgId = intent.getLongExtra("src_message_id", 0L)
+
+            if (srcChatId == 0L || srcMsgId == 0L) {
+                Snackbar.make(b.root, "❌ חסרים פרטי הודעה (chatId/messageId)", Snackbar.LENGTH_LONG).show()
+                return@setOnClickListener
+            }
+
+            val text = readCaptionText()
+
+            // כרגע תמיד ננסה לשלוח עם מדיה (אם קיימת בהודעה המקורית), ואם אין – ה-Worker עושה fallback לטקסט בלבד
+            val data = workDataOf(
+                SendWorker.KEY_SRC_CHAT_ID to srcChatId,
+                SendWorker.KEY_SRC_MESSAGE_ID to srcMsgId,
+                SendWorker.KEY_TARGET_USERNAME to targetUsername,
+                SendWorker.KEY_TEXT to text,
+                SendWorker.KEY_SEND_WITH_MEDIA to true
+            )
+
+            val req = OneTimeWorkRequestBuilder<SendWorker>()
+                .setInputData(data)
+                .addTag("send_worker")
+                .build()
+
+            WorkManager.getInstance(applicationContext).enqueue(req)
+            Snackbar.make(b.root, "✅ נשלח לתור שליחה…", Snackbar.LENGTH_SHORT).show()
         }
     }
 }

@@ -59,7 +59,9 @@ class MainActivity : AppCompatActivity() {
             it.putExtra("dateUnix", row.dateUnix)
             it.putExtra("miniThumbB64", row.miniThumbB64)
             it.putExtra("localPath", row.localPath)
-            startActivity(it)
+                        it.putExtra("src_chat_id", it.chatId)
+            it.putExtra("src_message_id", it.id)
+startActivity(it)
         }
 
         b.recycler.layoutManager = LinearLayoutManager(this)
