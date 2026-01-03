@@ -130,7 +130,7 @@
             android:layout_height="wrap_content"
             android:orientation="vertical"
             android:layout_marginTop="14dp"
-            android:visibility="gone">
+            android:visibility="visible">
 
             <com.google.android.material.textfield.TextInputLayout
                 android:layout_width="match_parent"
@@ -175,7 +175,7 @@
             android:layout_height="wrap_content"
             android:text="התחברות"
             android:layout_marginTop="12dp"
-            android:visibility="gone"
+            android:visibility="visible"
             app:cornerRadius="14dp" />
 
     </LinearLayout>

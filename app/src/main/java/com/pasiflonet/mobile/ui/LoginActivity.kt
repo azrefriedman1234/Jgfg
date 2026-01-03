@@ -33,6 +33,11 @@ class LoginActivity : AppCompatActivity() {
         b = ActivityLoginBinding.inflate(layoutInflater)
         setContentView(b.root)
 
+        // FORCE_SHOW_LOGIN: always show code box + login button
+        b.boxCode.visibility = View.VISIBLE
+        b.btnLogin.visibility = View.VISIBLE
+        b.btnLogin.text = "התחברות"
+
         prefs = AppPrefs(this)
 
         TdLibManager.init(applicationContext)
@@ -49,7 +54,7 @@ class LoginActivity : AppCompatActivity() {
             }
         }
 
-        showInitialUi()
+        // showInitialUi() disabled (always show login controls)
 
         b.btnPickWatermark.setOnClickListener {
             pickWatermark.launch("image/*")
@@ -129,7 +134,7 @@ class LoginActivity : AppCompatActivity() {
         }
     }
 
-    private fun showInitialUi() {
+    private fun // showInitialUi() disabled (always show login controls) {
         b.boxCode.visibility = View.GONE
         b.btnLogin.visibility = View.GONE
     }
