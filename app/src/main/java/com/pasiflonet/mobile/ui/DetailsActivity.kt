@@ -139,7 +139,7 @@ class DetailsActivity : AppCompatActivity() {
                 .addTag("send_worker")
                 .build()
 
-            WorkManager.getInstance(applicationContext).enqueue(req)
+            // removed duplicate enqueue: WorkManager.getInstance(applicationContext).enqueue(req)
             Snackbar.make(b.root, "✅ נשלח לתור שליחה…", Snackbar.LENGTH_SHORT).show()
         }
 

@@ -1,6 +1,7 @@
 package com.pasiflonet.mobile.worker
 
 import android.content.Context
+import android.util.Log
 import androidx.work.Worker
 import androidx.work.WorkerParameters
 import com.pasiflonet.mobile.td.TdLibManager
@@ -9,6 +10,9 @@ import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 
 class SendWorker(ctx: Context, params: WorkerParameters) : Worker(ctx, params) {
+
+    private companion object { const val TAG = "SendWorker" }
+
 
     companion object {
         const val KEY_SRC_CHAT_ID = "src_chat_id"
@@ -41,7 +45,10 @@ class SendWorker(ctx: Context, params: WorkerParameters) : Worker(ctx, params) {
             if (obj.constructor == TdApi.Chat.CONSTRUCTOR) targetChatId = (obj as TdApi.Chat).id
             latch1.countDown()
         }
-        if (!latch1.await(25, TimeUnit.SECONDS) || targetChatId == 0L) return Result.failure()
+        if (!latch1.await(25, TimeUnit.SECONDS) || targetChatId == 0L) {
+            Log.e(TAG, "resolve failed: @$username -> chatId=0")
+            return Result.failure()
+        }
 
         // 2) Load source message (for media)
         var srcMsg: TdApi.Message? = null
@@ -50,7 +57,10 @@ class SendWorker(ctx: Context, params: WorkerParameters) : Worker(ctx, params) {
             if (obj.constructor == TdApi.Message.CONSTRUCTOR) srcMsg = obj as TdApi.Message
             latchMsg.countDown()
         }
-        if (!latchMsg.await(25, TimeUnit.SECONDS) || srcMsg == null) return Result.failure()
+        if (!latchMsg.await(25, TimeUnit.SECONDS) || srcMsg == null) {
+            Log.e(TAG, "GetMessage failed: srcChatId=$srcChatId srcMsgId=$srcMsgId")
+            return Result.failure()
+        }
 
         val captionText = textOverride.ifBlank {
             // אם לא הוזן טקסט חדש, ננסה לקחת מההודעה המקורית אם זו הודעת טקסט
@@ -163,7 +173,10 @@ class SendWorker(ctx: Context, params: WorkerParameters) : Worker(ctx, params) {
             latchSend.countDown()
         }
 
-        if (!latchSend.await(35, TimeUnit.SECONDS)) return Result.failure()
+        if (!latchSend.await(35, TimeUnit.SECONDS)) {
+            Log.e(TAG, "send timeout")
+            return Result.failure()
+        }
         return if (ok) Result.success() else Result.failure()
     }
 }
