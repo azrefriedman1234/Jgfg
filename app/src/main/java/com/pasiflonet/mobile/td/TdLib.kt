@@ -16,7 +16,11 @@ object TdLib {
 
     fun init(ctx: Context) {
         if (client != null) return
-        try { Client.setLogVerbosityLevel(1) } catch (_: Throwable) {}
+
+        // חלק מהגרסאות לא כוללות setLogVerbosityLevel ישירות
+        try {
+            Client.execute(TdApi.SetLogVerbosityLevel(1))
+        } catch (_: Throwable) {}
 
         client = Client.create(
             { obj -> onUpdate(obj) },
