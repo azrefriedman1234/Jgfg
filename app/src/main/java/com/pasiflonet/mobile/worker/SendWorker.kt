@@ -18,7 +18,7 @@ import com.pasiflonet.mobile.ui.overlay.EditPlan
 import com.pasiflonet.mobile.util.JsonUtil
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-import org.drinkless.td.libcore.telegram.TdApi
+import org.drinkless.tdlib.TdApi
 import java.io.File
 import java.io.FileOutputStream
 import kotlin.coroutines.resume

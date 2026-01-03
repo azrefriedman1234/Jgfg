@@ -2,7 +2,7 @@ package com.pasiflonet.mobile.td
 
 import android.util.Log
 import kotlinx.coroutines.suspendCancellableCoroutine
-import org.drinkless.td.libcore.telegram.TdApi
+import org.drinkless.tdlib.TdApi
 import kotlin.coroutines.resume
 
 object TdMediaDownloader {

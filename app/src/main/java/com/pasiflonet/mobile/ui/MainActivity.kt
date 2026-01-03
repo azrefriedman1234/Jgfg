@@ -15,7 +15,7 @@ import com.pasiflonet.mobile.td.TdMediaDownloader
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
-import org.drinkless.td.libcore.telegram.TdApi
+import org.drinkless.tdlib.TdApi
 import java.io.File
 import java.util.concurrent.ConcurrentHashMap
 

@@ -15,7 +15,7 @@ import com.pasiflonet.mobile.td.TdLibManager
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
-import org.drinkless.td.libcore.telegram.TdApi
+import org.drinkless.tdlib.TdApi
 
 class LoginActivity : AppCompatActivity() {
 

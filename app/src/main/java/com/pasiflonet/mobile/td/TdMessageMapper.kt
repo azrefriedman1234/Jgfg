@@ -1,7 +1,7 @@
 package com.pasiflonet.mobile.td
 
 import com.pasiflonet.mobile.model.MessageRow
-import org.drinkless.td.libcore.telegram.TdApi
+import org.drinkless.tdlib.TdApi
 
 object TdMessageMapper {
 
