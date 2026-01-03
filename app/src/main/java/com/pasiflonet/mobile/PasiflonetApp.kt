@@ -1,30 +1,14 @@
 package com.pasiflonet.mobile
 
-import com.pasiflonet.mobile.data.AppPrefs
-
 import android.app.Application
-import androidx.work.Configuration
 import com.pasiflonet.mobile.td.TdLibManager
 import org.drinkless.tdlib.TdApi
 
-class PasiflonetApp : Application(), Configuration.Provider {
-
+class PasiflonetApp : Application() {
     override fun onCreate() {
         super.onCreate()
-        AppPrefs.init(applicationContext)
         TdLibManager.init(this)
-
-        // קריטי: ליצור client כבר כאן כדי לקבל authState מיד בכניסה השנייה
         TdLibManager.ensureClient()
-
-        // “ניעור” מצב הרשאה כדי שיזרום authState מהר
-        try {
-            TdLibManager.send(TdApi.GetAuthorizationState()) { }
-        } catch (_: Throwable) { }
+        TdLibManager.send(TdApi.GetAuthorizationState()) { }
     }
-
-    override val workManagerConfiguration: Configuration
-        get() = Configuration.Builder()
-            .setMinimumLoggingLevel(android.util.Log.INFO)
-            .build()
 }
