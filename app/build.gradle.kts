@@ -84,8 +84,8 @@ tasks.matching { it.name == "preBuild" }.configureEach {
 }
 
 dependencies {
-    implementation(name = "td-1.8.56", ext = "aar")
-    implementation(name = "ffmpeg-kit-full-gpl-6.0-2.LTS", ext = "aar")
+    implementation(files("libs/td-1.8.56.aar"))
+    implementation(files("libs/ffmpeg-kit-full-gpl-6.0-2.LTS.aar"))
 
     implementation(files("libs/${tdAarFile.name}"))
     implementation(files("libs/${ffmpegAarFile.name}"))
