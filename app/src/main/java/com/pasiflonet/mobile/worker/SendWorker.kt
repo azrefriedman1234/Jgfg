@@ -115,8 +115,16 @@ class SendWorker(
     }
 
     private suspend fun sendText(targetChatId: Long, text: String): Long {
-        val content = TdApi.InputMessageText(TdApi.FormattedText(text, null), false, true)
-        val req = TdApi.SendMessage(targetChatId, 0, 0, null, null, content)
+        val content = TdApi.InputMessageText().apply {
+            this.text = TdApi.FormattedText(text, null)
+            // לא מכריחים linkPreviewOptions / disablePreview כדי להיות תואם לכל גרסה
+        }
+
+        val req = TdApi.SendMessage().apply {
+            chatId = targetChatId
+            inputMessageContent = content
+        }
+
         val msg = tdAwaitMessage(req)
         return msg?.id ?: 0L
     }
@@ -132,12 +140,26 @@ class SendWorker(
         val formatted = TdApi.FormattedText(caption, null)
 
         val content: TdApi.InputMessageContent = when {
-            isImage -> TdApi.InputMessagePhoto(inputFile, null, 0, 0, formatted, null)
-            isVideo -> TdApi.InputMessageVideo(inputFile, null, null, 0, 0, 0, false, false, formatted, null)
-            else -> TdApi.InputMessageDocument(inputFile, null, false, formatted, null)
+            isImage -> TdApi.InputMessagePhoto().apply {
+                photo = inputFile
+                this.caption = formatted
+            }
+            isVideo -> TdApi.InputMessageVideo().apply {
+                video = inputFile
+                this.caption = formatted
+                supportsStreaming = true
+            }
+            else -> TdApi.InputMessageDocument().apply {
+                document = inputFile
+                this.caption = formatted
+            }
         }
 
-        val req = TdApi.SendMessage(targetChatId, 0, 0, null, null, content)
+        val req = TdApi.SendMessage().apply {
+            chatId = targetChatId
+            inputMessageContent = content
+        }
+
         val msg = tdAwaitMessage(req)
         return msg?.id ?: 0L
     }
