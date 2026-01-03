@@ -1,206 +1,200 @@
 package com.pasiflonet.mobile.ui
 
-import android.Manifest
 import android.content.Intent
-import android.net.Uri
-import android.os.Build
 import android.os.Bundle
-import androidx.activity.result.contract.ActivityResultContracts
+import android.view.View
+import android.widget.Button
+import android.widget.EditText
+import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.lifecycleScope
 import com.google.android.material.snackbar.Snackbar
 import com.pasiflonet.mobile.data.AppPrefs
-import com.pasiflonet.mobile.databinding.ActivityLoginBinding
-import com.pasiflonet.mobile.td.TdLib
-import kotlinx.coroutines.flow.first
+import com.pasiflonet.mobile.td.TdLibManager
+import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
 import org.drinkless.tdlib.TdApi
+import java.io.File
 
 class LoginActivity : AppCompatActivity() {
 
-    private lateinit var b: ActivityLoginBinding
-    private lateinit var prefs: AppPrefs
-
-    private val pickWatermark = registerForActivityResult(ActivityResultContracts.GetContent()) { uri: Uri? ->
-        if (uri != null) {
-            lifecycleScope.launch {
-                contentResolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                prefs.saveWatermark(uri.toString())
-                Snackbar.make(b.root, "✅ נשמר סימן מים", Snackbar.LENGTH_SHORT).show()
-            }
-        }
-    }
+    private lateinit var tvStatus: TextView
+    private lateinit var etApiId: EditText
+    private lateinit var etApiHash: EditText
+    private lateinit var etPhone: EditText
+    private lateinit var etTargetUsername: EditText
+    private lateinit var etCode: EditText
+    private lateinit var etPassword: EditText
+    private lateinit var btnSendCode: Button
+    private lateinit var btnLogin: Button
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        b = ActivityLoginBinding.inflate(layoutInflater)
-        setContentView(b.root)
 
-        prefs = AppPrefs(applicationContext)
-
-        lifecycleScope.launch {
-            // אם כבר מחובר – ישר לטבלה
-            if (prefs.loggedInFlow.first()) {
-                startActivity(Intent(this@LoginActivity, MainActivity::class.java))
-                finish()
-                return@launch
-            }
-
-            // טוען ערכים שמורים
-            val apiId = prefs.apiIdFlow.first()
-            val apiHash = prefs.apiHashFlow.first()
-            val phone = prefs.phoneFlow.first()
-            val target = prefs.targetUsernameFlow.first()
-            val watermark = prefs.watermarkFlow.first()
-
-            if (apiId != 0) b.etApiId.setText(apiId.toString())
-            if (apiHash.isNotEmpty()) b.etApiHash.setText(apiHash)
-            if (phone.isNotEmpty()) b.etPhone.setText(phone)
-            if (target.isNotEmpty()) b.etTargetUsername.setText(target)
-            if (watermark.isNotEmpty()) b.tvWatermarkHint.text = "✅ סימן מים: נשמר"
+        if (AppPrefs.isLoggedIn(this)) {
+            startActivity(Intent(this, MainActivity::class.java))
+            finish()
+            return
         }
 
-        // כפתור לבחור סימן מים
-        b.btnPickWatermark.setOnClickListener { pickWatermark.launch("image/*") }
+        setContentView(com.pasiflonet.mobile.R.layout.activity_login)
 
-        // שולח קוד אימות (ומציג תיבת קוד + כפתור התחברות)
-        b.btnSendCode.setOnClickListener {
-            val apiId = b.etApiId.text?.toString()?.trim()?.toIntOrNull() ?: 0
-            val apiHash = b.etApiHash.text?.toString()?.trim().orEmpty()
-            val phone = b.etPhone.text?.toString()?.trim().orEmpty()
-            val target = b.etTargetUsername.text?.toString()?.trim().orEmpty()
+        tvStatus = findViewById(com.pasiflonet.mobile.R.id.tvStatus)
+        etApiId = findViewById(com.pasiflonet.mobile.R.id.etApiId)
+        etApiHash = findViewById(com.pasiflonet.mobile.R.id.etApiHash)
+        etPhone = findViewById(com.pasiflonet.mobile.R.id.etPhone)
+        etTargetUsername = findViewById(com.pasiflonet.mobile.R.id.etTargetUsername)
+        etCode = findViewById(com.pasiflonet.mobile.R.id.etCode)
+        etPassword = findViewById(com.pasiflonet.mobile.R.id.etPassword)
+        btnSendCode = findViewById(com.pasiflonet.mobile.R.id.btnSendCode)
+        btnLogin = findViewById(com.pasiflonet.mobile.R.id.btnLogin)
 
-            if (apiId == 0 || apiHash.isEmpty() || phone.isEmpty() || target.isEmpty()) {
-                Snackbar.make(b.root, "❌ מלא apiId/apiHash/טלפון/@ערוץ יעד", Snackbar.LENGTH_SHORT).show()
+        // טעינת ערכים שמורים
+        val apiIdSaved = AppPrefs.getApiId(this)
+        if (apiIdSaved != 0) etApiId.setText(apiIdSaved.toString())
+        etApiHash.setText(AppPrefs.getApiHash(this))
+        etPhone.setText(AppPrefs.getPhone(this))
+        etTargetUsername.setText(AppPrefs.getTargetUsername(this))
+
+        TdLibManager.init(applicationContext)
+        TdLibManager.ensureClient()
+
+        // כל שינוי ביעד נשמר מיד
+        etTargetUsername.setOnFocusChangeListener { _, hasFocus ->
+            if (!hasFocus) saveTarget()
+        }
+
+        btnSendCode.setOnClickListener {
+            saveTarget()
+            val apiId = etApiId.text?.toString()?.trim().orEmpty().toIntOrNull() ?: 0
+            val apiHash = etApiHash.text?.toString()?.trim().orEmpty()
+            val phone = etPhone.text?.toString()?.trim().orEmpty()
+
+            if (apiId == 0 || apiHash.isBlank() || phone.isBlank()) {
+                Snackbar.make(findViewById(com.pasiflonet.mobile.R.id.root), "❌ מלא API ID / API HASH / טלפון", Snackbar.LENGTH_LONG).show()
                 return@setOnClickListener
             }
 
-            lifecycleScope.launch {
-                prefs.saveApiId(apiId)
-                prefs.saveApiHash(apiHash)
-                prefs.savePhone(phone)
-                prefs.saveTargetUsername(target)
+            AppPrefs.setApiId(this, apiId)
+            AppPrefs.setApiHash(this, apiHash)
+            AppPrefs.setPhone(this, phone)
 
-                // אתחול TDLib + פרמטרים
-                TdLib.init(applicationContext)
-                TdLib.send(setTdParams(apiId, apiHash)) { _ -> }
+            // SetTdlibParameters בצורה יציבה (בלי להיתקע על חתימות)
+            val params = TdApi.TdlibParameters()
+            val dbDir = File(filesDir, "tdlib").apply { mkdirs() }
+            params.databaseDirectory = dbDir.absolutePath
+            params.useMessageDatabase = true
+            params.useFileDatabase = true
+            params.useChatInfoDatabase = true
+            params.useSecretChats = false
+            params.apiId = apiId
+            params.apiHash = apiHash
+            params.systemLanguageCode = "en"
+            params.deviceModel = android.os.Build.MODEL ?: "Android"
+            params.systemVersion = android.os.Build.VERSION.RELEASE ?: "0"
+            params.applicationVersion = "1.0"
+            params.enableStorageOptimizer = true
 
-                // בקש שליחת קוד
-                TdLib.send(TdApi.SetAuthenticationPhoneNumber(phone, null)) { r ->
+            TdLibManager.send(TdApi.SetTdlibParameters(params)) { _ ->
+                TdLibManager.send(TdApi.SetAuthenticationPhoneNumber(phone, null)) { r ->
                     runOnUiThread {
                         if (r is TdApi.Error) {
-                            Snackbar.make(b.root, "❌ שגיאה בשליחת קוד: ${r.message}", Snackbar.LENGTH_LONG).show()
+                            Snackbar.make(findViewById(com.pasiflonet.mobile.R.id.root), "❌ שליחת קוד נכשלה: ${r.message}", Snackbar.LENGTH_LONG).show()
                         } else {
+                            Snackbar.make(findViewById(com.pasiflonet.mobile.R.id.root), "✅ קוד אימות נשלח", Snackbar.LENGTH_SHORT).show()
                             showCodeUi()
-                            Snackbar.make(b.root, "✅ קוד אימות נשלח", Snackbar.LENGTH_SHORT).show()
                         }
                     }
                 }
             }
         }
 
-        // כפתור התחברות – בודק קוד או 2FA
-        b.btnLogin.setOnClickListener {
-            val code = b.etCode.text?.toString()?.trim().orEmpty()
-            val twoFa = b.etTwoFa.text?.toString()?.trim().orEmpty()
+        btnLogin.setOnClickListener {
+            val code = etCode.text?.toString()?.trim().orEmpty()
+            val pass = etPassword.text?.toString()?.trim().orEmpty()
 
-            lifecycleScope.launch {
-                TdLib.init(applicationContext)
-
-                if (twoFa.isNotEmpty()) {
-                    TdLib.send(TdApi.CheckAuthenticationPassword(twoFa)) { r ->
-                        handleAuthResult(r)
+            // אם מוצג password -> שולחים Password, אחרת Code
+            if (etPassword.visibility == View.VISIBLE) {
+                TdLibManager.send(TdApi.CheckAuthenticationPassword(pass)) { r ->
+                    runOnUiThread {
+                        if (r is TdApi.Error) {
+                            Snackbar.make(findViewById(com.pasiflonet.mobile.R.id.root), "❌ 2FA נכשל: ${r.message}", Snackbar.LENGTH_LONG).show()
+                        }
                     }
-                } else {
-                    if (code.isEmpty()) {
-                        Snackbar.make(b.root, "❌ הכנס קוד אימות", Snackbar.LENGTH_SHORT).show()
-                        return@launch
-                    }
-                    TdLib.send(TdApi.CheckAuthenticationCode(code)) { r ->
-                        handleAuthResult(r)
+                }
+            } else {
+                if (code.isBlank()) {
+                    Snackbar.make(findViewById(com.pasiflonet.mobile.R.id.root), "❌ הזן קוד אימות", Snackbar.LENGTH_LONG).show()
+                    return@setOnClickListener
+                }
+                TdLibManager.send(TdApi.CheckAuthenticationCode(code)) { r ->
+                    runOnUiThread {
+                        if (r is TdApi.Error) {
+                            Snackbar.make(findViewById(com.pasiflonet.mobile.R.id.root), "❌ קוד שגוי: ${r.message}", Snackbar.LENGTH_LONG).show()
+                        }
                     }
                 }
             }
         }
 
-        // ברירת מחדל: רק שליחת קוד מוצג, והקוד/התחברות מוסתרים עד שליחת קוד
-        showPhoneUi()
-    }
-
-    private fun handleAuthResult(obj: TdApi.Object) {
-        runOnUiThread {
-            when (obj) {
-                is TdApi.Error -> {
-                    val msg = obj.message ?: "שגיאה"
-                    if (msg.contains("PASSWORD", ignoreCase = true) || msg.contains("2FA", ignoreCase = true)) {
-                        showTwoFaUi()
-                        Snackbar.make(b.root, "🔐 נדרש אימות דו-שלבי (2FA)", Snackbar.LENGTH_LONG).show()
-                    } else {
-                        Snackbar.make(b.root, "❌ התחברות נכשלה: $msg", Snackbar.LENGTH_LONG).show()
-                    }
-                }
-                else -> {
-                    // לא מספיק לסמוך על זה — מחכים ל־Ready דרך עדכון סטייט:
-                    Snackbar.make(b.root, "⏳ מאמת…", Snackbar.LENGTH_SHORT).show()
-                    waitForReadyAndEnter()
-                }
-            }
-        }
-    }
-
-    private fun waitForReadyAndEnter() {
+        // מעקב מצב התחברות -> UI
         lifecycleScope.launch {
-            // TDLib שולח UpdateAuthorizationState -> Ready
-            TdLib.authStateFlow.collect { st ->
-                if (st is TdApi.AuthorizationStateReady) {
-                    prefs.setLoggedIn(true)
-                    startActivity(Intent(this@LoginActivity, MainActivity::class.java))
-                    finish()
-                }
+            TdLibManager.authState.collectLatest { st ->
+                if (st == null) return@collectLatest
+                runOnUiThread { renderState(st) }
             }
         }
+
+        // בקשה לקבלת מצב התחברות
+        TdLibManager.send(TdApi.GetAuthorizationState()) { }
     }
 
-    private fun showPhoneUi() {
-        b.boxCode.visibility = android.view.View.GONE
-        b.boxTwoFa.visibility = android.view.View.GONE
-        b.btnLogin.visibility = android.view.View.GONE
-        b.btnSendCode.visibility = android.view.View.VISIBLE
+    private fun saveTarget() {
+        val t = etTargetUsername.text?.toString()?.trim().orEmpty()
+        if (t.isNotBlank()) {
+            AppPrefs.setTargetUsername(this, if (t.startsWith("@")) t else "@$t")
+        }
     }
 
     private fun showCodeUi() {
-        b.boxCode.visibility = android.view.View.VISIBLE
-        b.boxTwoFa.visibility = android.view.View.GONE
-        b.btnLogin.visibility = android.view.View.VISIBLE
+        etCode.visibility = View.VISIBLE
+        btnLogin.visibility = View.VISIBLE
+        btnSendCode.visibility = View.VISIBLE
     }
 
-    private fun showTwoFaUi() {
-        b.boxCode.visibility = android.view.View.VISIBLE
-        b.boxTwoFa.visibility = android.view.View.VISIBLE
-        b.btnLogin.visibility = android.view.View.VISIBLE
-    }
-
-    private fun setTdParams(apiId: Int, apiHash: String): TdApi.SetTdlibParameters {
-        val dbDir = filesDir.resolve("tdlib").absolutePath
-        val filesDir = filesDir.resolve("tdlib_files").absolutePath
-        val key = ByteArray(0)
-
-        // חתימה שמתאימה ל־1.8.56 לפי הלוגים שלך (אין enableStorageOptimizer כאן)
-        return TdApi.SetTdlibParameters(
-            false,          // useTestDc
-            dbDir,
-            filesDir,
-            key,
-            true,           // useFileDatabase
-            true,           // useChatInfoDatabase
-            true,           // useMessageDatabase
-            true,           // useSecretChats
-            apiId,
-            apiHash,
-            "en",
-            Build.MODEL ?: "Android",
-            Build.VERSION.RELEASE ?: "0",
-            "1.0"
-        )
+    private fun renderState(st: TdApi.AuthorizationState) {
+        when (st) {
+            is TdApi.AuthorizationStateWaitTdlibParameters -> {
+                tvStatus.text = "סטטוס: מחכה לפרמטרים"
+                btnLogin.visibility = View.GONE
+                etCode.visibility = View.GONE
+                etPassword.visibility = View.GONE
+            }
+            is TdApi.AuthorizationStateWaitPhoneNumber -> {
+                tvStatus.text = "סטטוס: מחכה לטלפון (לחץ 'שלח קוד')"
+                btnLogin.visibility = View.GONE
+                etCode.visibility = View.GONE
+                etPassword.visibility = View.GONE
+            }
+            is TdApi.AuthorizationStateWaitCode -> {
+                tvStatus.text = "סטטוס: מחכה לקוד אימות"
+                showCodeUi()
+                etPassword.visibility = View.GONE
+            }
+            is TdApi.AuthorizationStateWaitPassword -> {
+                tvStatus.text = "סטטוס: מחכה לסיסמת 2FA"
+                showCodeUi()
+                etPassword.visibility = View.VISIBLE
+            }
+            is TdApi.AuthorizationStateReady -> {
+                tvStatus.text = "✅ התחברת!"
+                AppPrefs.setLoggedIn(this, true)
+                startActivity(Intent(this, MainActivity::class.java))
+                finish()
+            }
+            else -> {
+                tvStatus.text = "סטטוס: ${st.javaClass.simpleName}"
+            }
+        }
     }
 }

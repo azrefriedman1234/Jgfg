@@ -1,162 +1,130 @@
 <?xml version="1.0" encoding="utf-8"?>
 <ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
-    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:id="@+id/root"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:fillViewport="true">
+    android:fillViewport="true"
+    android:background="#0B0F14"
+    android:padding="16dp">
 
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:orientation="vertical"
-        android:padding="16dp">
+        android:orientation="vertical">
 
         <TextView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="פסיפלונט מובייל - התחברות"
-            android:textSize="22sp"
+            android:text="Pasiflonet • Login"
+            android:textColor="#FFFFFF"
+            android:textSize="20sp"
             android:textStyle="bold"
-            android:paddingBottom="12dp" />
+            android:paddingBottom="12dp"/>
 
-        <com.google.android.material.textfield.TextInputLayout
-            style="@style/Widget.Material3.TextInputLayout.OutlinedBox"
+        <TextView
+            android:id="@+id/tvStatus"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:hint="API ID">
-            <com.google.android.material.textfield.TextInputEditText
-                android:id="@+id/etApiId"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:inputType="number"
-                android:textColor="@android:color/white"/>
-        </com.google.android.material.textfield.TextInputLayout>
+            android:text="סטטוס: ממתין…"
+            android:textColor="#B3FFFFFF"
+            android:textSize="13sp"
+            android:paddingBottom="12dp"/>
 
-        <com.google.android.material.textfield.TextInputLayout
-            style="@style/Widget.Material3.TextInputLayout.OutlinedBox"
+        <EditText
+            android:id="@+id/etApiId"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:hint="API HASH"
-            android:layout_marginTop="10dp">
-            <com.google.android.material.textfield.TextInputEditText
-                android:id="@+id/etApiHash"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:inputType="text"
-                android:textColor="@android:color/white"/>
-        </com.google.android.material.textfield.TextInputLayout>
+            android:hint="API ID (מספר)"
+            android:inputType="number"
+            android:textColor="#FFFFFF"
+            android:hintTextColor="#80FFFFFF"
+            android:padding="12dp"
+            android:background="#141B22"/>
 
-        <com.google.android.material.textfield.TextInputLayout
-            style="@style/Widget.Material3.TextInputLayout.OutlinedBox"
+        <EditText
+            android:id="@+id/etApiHash"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:hint="מספר טלפון (כולל +972)"
-            android:layout_marginTop="10dp">
-            <com.google.android.material.textfield.TextInputEditText
-                android:id="@+id/etPhone"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:inputType="phone"
-                android:textColor="@android:color/white"/>
-        </com.google.android.material.textfield.TextInputLayout>
-
-        <com.google.android.material.textfield.TextInputLayout
-            style="@style/Widget.Material3.TextInputLayout.OutlinedBox"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:hint="ערוץ יעד (@username)"
-            android:layout_marginTop="10dp">
-            <com.google.android.material.textfield.TextInputEditText
-                android:id="@+id/etTargetUsername"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:inputType="text"
-                android:textColor="@android:color/white"/>
-        </com.google.android.material.textfield.TextInputLayout>
-
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="12dp"
-            android:orientation="horizontal">
-
-            <com.google.android.material.button.MaterialButton
-                android:id="@+id/btnPickWatermark"
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:text="בחר סימן מים" />
-
-            <TextView
-                android:id="@+id/tvWatermarkHint"
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:text="סימן מים: לא נבחר"
-                android:paddingStart="12dp"
-                android:gravity="center_vertical" />
-        </LinearLayout>
-
-        <com.google.android.material.button.MaterialButton
-            android:id="@+id/btnSendCode"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="שלח קוד אימות"
-            android:layout_marginTop="14dp"/>
-
-        <!-- קוד אימות -->
-        <LinearLayout
-            android:id="@+id/boxCode"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:orientation="vertical"
-            android:layout_marginTop="12dp"
-            android:visibility="gone">
-
-            <com.google.android.material.textfield.TextInputLayout
-                style="@style/Widget.Material3.TextInputLayout.OutlinedBox"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:hint="קוד אימות">
-                <com.google.android.material.textfield.TextInputEditText
-                    android:id="@+id/etCode"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:inputType="number"
-                    android:textColor="@android:color/white"/>
-            </com.google.android.material.textfield.TextInputLayout>
-        </LinearLayout>
-
-        <!-- 2FA -->
-        <LinearLayout
-            android:id="@+id/boxTwoFa"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:orientation="vertical"
             android:layout_marginTop="10dp"
-            android:visibility="gone">
+            android:hint="API HASH"
+            android:inputType="text"
+            android:textColor="#FFFFFF"
+            android:hintTextColor="#80FFFFFF"
+            android:padding="12dp"
+            android:background="#141B22"/>
 
-            <com.google.android.material.textfield.TextInputLayout
-                style="@style/Widget.Material3.TextInputLayout.OutlinedBox"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:hint="סיסמת אימות דו-שלבי (אם צריך)">
-                <com.google.android.material.textfield.TextInputEditText
-                    android:id="@+id/etTwoFa"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:inputType="textPassword"
-                    android:textColor="@android:color/white"/>
-            </com.google.android.material.textfield.TextInputLayout>
-        </LinearLayout>
-
-        <com.google.android.material.button.MaterialButton
-            android:id="@+id/btnLogin"
+        <EditText
+            android:id="@+id/etPhone"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="התחברות"
-            android:layout_marginTop="12dp"
+            android:layout_marginTop="10dp"
+            android:hint="טלפון +972…"
+            android:inputType="phone"
+            android:textColor="#FFFFFF"
+            android:hintTextColor="#80FFFFFF"
+            android:padding="12dp"
+            android:background="#141B22"/>
+
+        <EditText
+            android:id="@+id/etTargetUsername"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="10dp"
+            android:hint="ערוץ יעד בפורמט @username"
+            android:inputType="text"
+            android:textColor="#FFFFFF"
+            android:hintTextColor="#80FFFFFF"
+            android:padding="12dp"
+            android:background="#141B22"/>
+
+        <EditText
+            android:id="@+id/etCode"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="10dp"
+            android:hint="קוד אימות (SMS/Telegram)"
+            android:inputType="number"
+            android:textColor="#FFFFFF"
+            android:hintTextColor="#80FFFFFF"
+            android:padding="12dp"
+            android:background="#141B22"
             android:visibility="gone"/>
+
+        <EditText
+            android:id="@+id/etPassword"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="10dp"
+            android:hint="סיסמת 2FA (אם יש)"
+            android:inputType="textPassword"
+            android:textColor="#FFFFFF"
+            android:hintTextColor="#80FFFFFF"
+            android:padding="12dp"
+            android:background="#141B22"
+            android:visibility="gone"/>
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:layout_marginTop="14dp">
+
+            <Button
+                android:id="@+id/btnSendCode"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="שלח קוד אימות"/>
+
+            <Button
+                android:id="@+id/btnLogin"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:layout_marginStart="10dp"
+                android:text="התחבר"
+                android:visibility="gone"/>
+        </LinearLayout>
 
     </LinearLayout>
 </ScrollView>
