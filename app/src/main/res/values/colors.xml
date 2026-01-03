@@ -1,12 +1,17 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <!-- Material-ish dark palette -->
+    <!-- Accent palette -->
     <color name="primary">#7C4DFF</color>
     <color name="secondary">#00E5FF</color>
     <color name="tertiary">#00C853</color>
 
-    <color name="background">#0B0F14</color>
-    <color name="surface">#111827</color>
-    <color name="onSurface">#FFFFFF</color>
-    <color name="onBackground">#FFFFFF</color>
+    <!-- Base dark surfaces -->
+    <color name="md_theme_background">#0B0F14</color>
+    <color name="md_theme_surface">#111827</color>
+    <color name="md_theme_onSurface">#FFFFFF</color>
+
+    <!-- Optional aliases -->
+    <color name="background">@color/md_theme_background</color>
+    <color name="surface">@color/md_theme_surface</color>
+    <color name="onSurface">@color/md_theme_onSurface</color>
 </resources>
