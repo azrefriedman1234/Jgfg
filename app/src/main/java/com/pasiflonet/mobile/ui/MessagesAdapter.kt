@@ -17,8 +17,11 @@ data class UiMsg(
     val dateSec: Int,
     val from: String,
     val text: String,
-    val miniThumbB64: String? = null,
-    val hasMedia: Boolean = false
+
+    // NEW (defaults so older code won't break)
+    val hasMedia: Boolean = false,
+    val mediaMime: String? = null,
+    val miniThumbB64: String? = null
 )
 
 class MessagesAdapter(
@@ -45,7 +48,7 @@ class MessagesAdapter(
         val m = items[position]
         holder.tvDate.text = fmt.format(Date(m.dateSec.toLong() * 1000L))
         holder.tvFrom.text = m.from
-        holder.tvMsg.text = if (m.hasMedia) "📎 ${m.text}" else m.text
+        holder.tvMsg.text = m.text
         holder.btnDetails.setOnClickListener { onDetails(m) }
     }
 

@@ -26,7 +26,6 @@
             android:scaleType="fitCenter"
             android:contentDescription="@null"/>
 
-        <!-- Draggable watermark overlay (on preview) -->
         <ImageView
             android:id="@+id/ivWatermarkOverlay"
             android:layout_width="120dp"
@@ -34,7 +33,6 @@
             android:visibility="gone"
             android:contentDescription="@null"/>
 
-        <!-- Blur overlay -->
         <com.pasiflonet.mobile.ui.BlurOverlayView
             android:id="@+id/blurOverlay"
             android:layout_width="match_parent"
@@ -53,7 +51,6 @@
         app:layout_constraintTop_toTopOf="parent"
         app:layout_constraintBottom_toBottomOf="parent">
 
-        <!-- Scrollable content -->
         <androidx.core.widget.NestedScrollView
             android:id="@+id/scrollArea"
             android:layout_width="match_parent"
@@ -93,18 +90,24 @@
 
                 <Space
                     android:layout_width="1dp"
+                    android:layout_height="10dp"/>
+
+                <!-- NEW: Send with media toggle -->
+                <com.google.android.material.switchmaterial.SwitchMaterial
+                    android:id="@+id/swSendWithMedia"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="שלח עם מדיה (אם קיימת)"
+                    android:checked="true"/>
+
+                <Space
+                    android:layout_width="1dp"
                     android:layout_height="12dp"/>
+
             </LinearLayout>
         </androidx.core.widget.NestedScrollView>
 
-                <com.google.android.material.switchmaterial.SwitchMaterial
-            android:id="@+id/swSendWithMedia"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="שלח עם מדיה (אם קיימת)"
-            android:checked="true" />
-
-<!-- Fixed bottom buttons (always reachable) -->
+        <!-- Fixed bottom buttons -->
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
@@ -155,7 +158,7 @@
                     android:layout_width="0dp"
                     android:layout_height="wrap_content"
                     android:layout_weight="1"
-                    android:text="שלח לערוץ"/>
+                    android:text="שלח"/>
             </LinearLayout>
 
         </LinearLayout>
