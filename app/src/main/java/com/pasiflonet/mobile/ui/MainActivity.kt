@@ -1,8 +1,14 @@
 package com.pasiflonet.mobile.ui
 
+import android.Manifest
 import android.content.Intent
+import android.content.pm.PackageManager
+import android.os.Build
 import android.os.Bundle
+import android.widget.Toast
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.content.ContextCompat
 import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.LinearLayoutManager
 import com.google.android.material.snackbar.Snackbar
@@ -25,35 +31,53 @@ class MainActivity : AppCompatActivity() {
     private val chatIsChannel = ConcurrentHashMap<Long, Boolean>()
     private val started = AtomicBoolean(false)
 
+    private val permLauncher =
+        registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { res ->
+            val ok = res.values.all { it }
+            Snackbar.make(
+                b.root,
+                if (ok) "✅ ניתנה הרשאה למדיה" else "⚠️ בלי הרשאה למדיה חלק מהפעולות לא יעבדו",
+                Snackbar.LENGTH_LONG
+            ).show()
+        }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         b = ActivityMainBinding.inflate(layoutInflater)
         setContentView(b.root)
 
-        adapter = MessagesAdapter(
-            onDetails = { row ->
-                val i = Intent(this, DetailsActivity::class.java)
-                i.putExtra("row_json", com.pasiflonet.mobile.util.JsonUtil.toJson(row))
+        // בקשת הרשאה מיד, לפני ניווטים
+        requestMediaPermissionsIfNeeded()
+
+        TdLibManager.init(applicationContext)
+        TdLibManager.ensureClient()
+        TdLibManager.send(TdApi.GetAuthorizationState()) { }
+
+        adapter = MessagesAdapter { row ->
+            try {
+                val i = Intent(this, DetailsActivity::class.java).apply {
+                    putExtra("src_chat_id", row.chatId)
+                    putExtra("src_message_id", row.messageId)
+                    putExtra("src_text", row.text)
+                    putExtra("src_type", row.typeLabel)
+                }
                 startActivity(i)
+            } catch (t: Throwable) {
+                Toast.makeText(this, "קריסה נמנעה בפרטים: ${t.message}", Toast.LENGTH_LONG).show()
             }
-        )
+        }
 
         b.recycler.layoutManager = LinearLayoutManager(this)
         b.recycler.adapter = adapter
 
         b.btnExit.setOnClickListener { finishAffinity() }
 
-        // ניקוי זמניים (לא מוחק TDLib session)
+        // אצלך הכפתור נקרא btnClearTemp
         b.btnClearTemp.setOnClickListener {
             val n = TempCleaner.clean(applicationContext)
             Snackbar.make(b.root, "✅ נמחקו קבצים זמניים: $n", Snackbar.LENGTH_SHORT).show()
         }
 
-        // קריטי: לוודא client קיים + לבקש auth state
-        TdLibManager.ensureClient()
-        TdLibManager.send(TdApi.GetAuthorizationState()) { }
-
-        // מחכים למצב הרשאה אמיתי. אם READY -> מתחילים לטעון/להאזין להודעות
         lifecycleScope.launch {
             TdLibManager.authState.collectLatest { st ->
                 if (st == null) return@collectLatest
@@ -64,7 +88,6 @@ class MainActivity : AppCompatActivity() {
                         observeTdUpdates()
                     }
                 } else {
-                    // לא READY => הולכים ל-Login (רק פעם אחת)
                     if (started.compareAndSet(false, true)) {
                         startActivity(Intent(this@MainActivity, LoginActivity::class.java))
                         finish()
@@ -74,12 +97,31 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    private fun requestMediaPermissionsIfNeeded() {
+        val perms = if (Build.VERSION.SDK_INT >= 33) {
+            arrayOf(
+                Manifest.permission.READ_MEDIA_IMAGES,
+                Manifest.permission.READ_MEDIA_VIDEO
+            )
+        } else {
+            arrayOf(Manifest.permission.READ_EXTERNAL_STORAGE)
+        }
+
+        val missing = perms.filter {
+            ContextCompat.checkSelfPermission(this, it) != PackageManager.PERMISSION_GRANTED
+        }
+
+        if (missing.isNotEmpty()) {
+            permLauncher.launch(missing.toTypedArray())
+        }
+    }
+
     private fun seedRecentMessages() {
         lifecycleScope.launch(Dispatchers.IO) {
             TdLibManager.send(TdApi.GetChats(TdApi.ChatListMain(), 100)) { obj ->
                 if (obj.constructor != TdApi.Chats.CONSTRUCTOR) return@send
                 val chats = (obj as TdApi.Chats).chatIds ?: return@send
-                chats.forEach { chatId ->
+                for (chatId in chats) {
                     TdLibManager.send(TdApi.GetChat(chatId)) { chatObj ->
                         if (chatObj.constructor != TdApi.Chat.CONSTRUCTOR) return@send
                         val chat = chatObj as TdApi.Chat
@@ -129,7 +171,6 @@ class MainActivity : AppCompatActivity() {
         lifecycleScope.launch(Dispatchers.IO) {
             val thumbId = TdMessageMapper.getThumbFileId(msg.content)
             val thumbPath = if (thumbId != null) {
-                // מוריד רק thumbnail (קטן ומהיר) — זה בדיוק מה שרצית
                 TdMediaDownloader.downloadFile(thumbId, priority = 8, synchronous = true)
             } else null
 
