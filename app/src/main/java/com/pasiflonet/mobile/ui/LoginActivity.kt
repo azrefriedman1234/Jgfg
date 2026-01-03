@@ -19,7 +19,6 @@ class LoginActivity : AppCompatActivity() {
 
     private lateinit var b: ActivityLoginBinding
     private lateinit var prefs: AppPrefs
-
     private var watermarkUri: String = ""
 
     private val pickWatermark = registerForActivityResult(ActivityResultContracts.GetContent()) { uri: Uri? ->
@@ -36,13 +35,12 @@ class LoginActivity : AppCompatActivity() {
 
         prefs = AppPrefs(this)
 
-        // TDLib init
         TdLibManager.init(applicationContext)
         TdLibManager.ensureClient()
-        TdLibManager.send(TdApi.GetAuthorizationState()) { }
 
-        // אם כבר READY -> ישר לטבלה (לא להציג שוב התחברות)
+        // אם כבר מחובר – לעבור ישר לטבלה
         lifecycleScope.launch {
+            TdLibManager.send(TdApi.GetAuthorizationState()) { _ -> }
             TdLibManager.authState.collectLatest { st ->
                 if (st != null && st.constructor == TdApi.AuthorizationStateReady.CONSTRUCTOR) {
                     startActivity(Intent(this@LoginActivity, MainActivity::class.java))
@@ -51,7 +49,6 @@ class LoginActivity : AppCompatActivity() {
             }
         }
 
-        // UI initial
         showInitialUi()
 
         b.btnPickWatermark.setOnClickListener {
@@ -73,47 +70,37 @@ class LoginActivity : AppCompatActivity() {
                 return@setOnClickListener
             }
 
-            val apiId = apiIdStr.toIntOrNull()
-            if (apiId == null) {
+            val apiIdInt = apiIdStr.toIntOrNull()
+            if (apiIdInt == null) {
                 Snackbar.make(b.root, "API ID חייב להיות מספר", Snackbar.LENGTH_LONG).show()
                 return@setOnClickListener
             }
 
             lifecycleScope.launch {
-                // שמירה (suspend) בתוך coroutine
+                // AppPrefs אצלך שומר apiId כ-String -> נשמור את apiIdStr
                 prefs.saveApiId(apiIdStr)
                 prefs.saveApiHash(apiHash)
                 prefs.savePhone(phone)
                 prefs.saveTargetUsername(targetUsername)
                 if (watermarkUri.isNotBlank()) prefs.saveWatermark(watermarkUri)
 
-                // הגדרת TDLib + שליחת קוד
-                TdLibManager.send(
-                    TdApi.SetTdlibParameters(
-                        false,
-                        filesDir.absolutePath + "/tdlib",
-                        filesDir.absolutePath + "/tdlib",
-                        ByteArray(0),
-                        false, false, false, false,
-                        apiId,
-                        apiHash,
-                        "he",
-                        android.os.Build.MODEL ?: "Android",
-                        android.os.Build.VERSION.RELEASE ?: "0",
-                        "1.0"
-                    ),
-                        false, false, false, false,
-                        apiId,
-                        apiHash,
-                        "Android",
-                        android.os.Build.MODEL ?: "Android",
-                        android.os.Build.VERSION.RELEASE ?: "0",
-                        "1.0",
-                        true
-                    )
-                ) { }
+                // חתימה תואמת ל-TDLib שלך (14 פרמטרים, בלי enableStorageOptimizer)
+                val params = TdApi.SetTdlibParameters(
+                    false,
+                    filesDir.absolutePath + "/tdlib",
+                    filesDir.absolutePath + "/tdlib",
+                    ByteArray(0),
+                    false, false, false, false,
+                    apiIdInt,
+                    apiHash,
+                    "he",
+                    android.os.Build.MODEL ?: "Android",
+                    android.os.Build.VERSION.RELEASE ?: "0",
+                    "1.0"
+                )
 
-                TdLibManager.send(TdApi.SetAuthenticationPhoneNumber(phone, null)) { }
+                TdLibManager.send(params) { _ -> }
+                TdLibManager.send(TdApi.SetAuthenticationPhoneNumber(phone, null)) { _ -> }
 
                 showCodeUi()
                 Snackbar.make(b.root, "✅ קוד אימות נשלח", Snackbar.LENGTH_SHORT).show()
@@ -130,11 +117,12 @@ class LoginActivity : AppCompatActivity() {
             }
 
             lifecycleScope.launch {
-                TdLibManager.send(TdApi.CheckAuthenticationCode(code)) { }
+                TdLibManager.send(TdApi.CheckAuthenticationCode(code)) { _ -> }
                 if (pass.isNotBlank()) {
-                    TdLibManager.send(TdApi.CheckAuthenticationPassword(pass)) { }
+                    TdLibManager.send(TdApi.CheckAuthenticationPassword(pass)) { _ -> }
                 }
                 Snackbar.make(b.root, "מתחבר…", Snackbar.LENGTH_SHORT).show()
+                // המעבר לטבלה יקרה אוטומטית כשה-authState יהפוך ל-READY (ה-collectLatest למעלה)
             }
         }
     }
