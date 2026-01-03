@@ -32,6 +32,8 @@ import kotlin.math.min
 class DetailsActivity : AppCompatActivity() {
 
     companion object {
+        const val EXTRA_HAS_MEDIA_HINT = "has_media_hint"
+
         const val EXTRA_SRC_CHAT_ID = "src_chat_id"
         const val EXTRA_SRC_MESSAGE_ID = "src_message_id"
         const val EXTRA_TEXT = "text"
@@ -47,14 +49,16 @@ class DetailsActivity : AppCompatActivity() {
             mediaUri: String? = null,
             mediaMime: String? = null,
             miniThumbB64: String? = null
-        ) {
+        ,
+            hasMediaHint: Boolean = false) {
             val i = Intent(ctx, DetailsActivity::class.java)
             i.putExtra(EXTRA_SRC_CHAT_ID, chatId)
             i.putExtra(EXTRA_SRC_MESSAGE_ID, msgId)
             i.putExtra(EXTRA_TEXT, text)
             if (!mediaUri.isNullOrBlank()) i.putExtra(EXTRA_MEDIA_URI, mediaUri)
             if (!mediaMime.isNullOrBlank()) i.putExtra(EXTRA_MEDIA_MIME, mediaMime)
-            if (!miniThumbB64.isNullOrBlank()) i.putExtra(EXTRA_MINITHUMB_B64, miniThumbB64)
+            if (!miniThumbB64.isNullOrBlank()) i.putExtra(EXTRA_MINITHUMB_B64, miniThumbB64)        i.putExtra(EXTRA_HAS_MEDIA_HINT, hasMediaHint)
+
             ctx.startActivity(i)
         }
     }

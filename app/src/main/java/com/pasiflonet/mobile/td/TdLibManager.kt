@@ -7,8 +7,17 @@ import org.drinkless.tdlib.Client
 import org.drinkless.tdlib.TdApi
 import java.util.concurrent.CopyOnWriteArrayList
 import java.util.concurrent.atomic.AtomicBoolean
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.SharedFlow
+import kotlinx.coroutines.flow.asSharedFlow
 
 object TdLibManager {
+
+    // ---- Live updates stream for UI ----
+    private val _updates = MutableSharedFlow<TdApi.Object>(extraBufferCapacity = 256)
+    val updates: SharedFlow<TdApi.Object> = _updates.asSharedFlow()
+    // -----------------------------------
+
 
     private var appCtx: Context? = null
     private var client: Client? = null
@@ -51,10 +60,11 @@ object TdLibManager {
         send(TdApi.SetOption("is_background", TdApi.OptionValueBoolean(!online))) { }
     }
 
-    fun send(fn: TdApi.Function, cb: (TdApi.Object) -> Unit) {
+    fun send(fn: TdApi.Function<out TdApi.Object>, cb: (TdApi.Object) -> Unit) {
         ensureClient()
         val c = client ?: return
         c.send(fn, Client.ResultHandler { obj ->
+            _updates.tryEmit(obj)
             cb(obj ?: TdApi.Error(500, "TDLib returned null"))
         })
     }
