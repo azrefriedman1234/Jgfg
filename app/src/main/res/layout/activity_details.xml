@@ -63,7 +63,7 @@
             android:background="#141B22"
             android:padding="12dp"
             android:textColor="#FFFFFF"
-            android:hintTextColor="#80FFFFFF"
+            android:textColorHint="#80FFFFFF"
             android:hint="טקסט להודעה / תיאור"
             android:inputType="textMultiLine"
             android:minLines="6" />

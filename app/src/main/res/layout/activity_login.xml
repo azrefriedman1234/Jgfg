@@ -37,7 +37,7 @@
             android:hint="API ID (מספר)"
             android:inputType="number"
             android:textColor="#FFFFFF"
-            android:hintTextColor="#80FFFFFF"
+            android:textColorHint="#80FFFFFF"
             android:padding="12dp"
             android:background="#141B22"/>
 
@@ -49,7 +49,7 @@
             android:hint="API HASH"
             android:inputType="text"
             android:textColor="#FFFFFF"
-            android:hintTextColor="#80FFFFFF"
+            android:textColorHint="#80FFFFFF"
             android:padding="12dp"
             android:background="#141B22"/>
 
@@ -61,7 +61,7 @@
             android:hint="טלפון +972…"
             android:inputType="phone"
             android:textColor="#FFFFFF"
-            android:hintTextColor="#80FFFFFF"
+            android:textColorHint="#80FFFFFF"
             android:padding="12dp"
             android:background="#141B22"/>
 
@@ -73,7 +73,7 @@
             android:hint="ערוץ יעד בפורמט @username"
             android:inputType="text"
             android:textColor="#FFFFFF"
-            android:hintTextColor="#80FFFFFF"
+            android:textColorHint="#80FFFFFF"
             android:padding="12dp"
             android:background="#141B22"/>
 
@@ -85,7 +85,7 @@
             android:hint="קוד אימות (SMS/Telegram)"
             android:inputType="number"
             android:textColor="#FFFFFF"
-            android:hintTextColor="#80FFFFFF"
+            android:textColorHint="#80FFFFFF"
             android:padding="12dp"
             android:background="#141B22"
             android:visibility="gone"/>
@@ -98,7 +98,7 @@
             android:hint="סיסמת 2FA (אם יש)"
             android:inputType="textPassword"
             android:textColor="#FFFFFF"
-            android:hintTextColor="#80FFFFFF"
+            android:textColorHint="#80FFFFFF"
             android:padding="12dp"
             android:background="#141B22"
             android:visibility="gone"/>
