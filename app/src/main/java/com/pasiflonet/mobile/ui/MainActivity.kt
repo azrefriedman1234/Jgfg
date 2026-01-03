@@ -84,8 +84,9 @@ class MainActivity : AppCompatActivity() {
 
                 if (st.constructor == TdApi.AuthorizationStateReady.CONSTRUCTOR) {
                     if (started.compareAndSet(false, true)) {
-                        seedRecentMessages()
-                        observeTdUpdates()
+
+                        adapter.clearAll()
+observeTdUpdates()
                     }
                 } else {
                     if (started.compareAndSet(false, true)) {
@@ -116,7 +117,8 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    private fun seedRecentMessages() {
+    private fun
+{
         lifecycleScope.launch(Dispatchers.IO) {
             TdLibManager.send(TdApi.GetChats(TdApi.ChatListMain(), 100)) { obj ->
                 if (obj.constructor != TdApi.Chats.CONSTRUCTOR) return@send
