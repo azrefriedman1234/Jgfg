@@ -64,7 +64,7 @@ class SendWorker(ctx: Context, params: WorkerParameters) : Worker(ctx, params) {
 
         // TEXT ONLY
         if (!sendWithMedia) {
-            val content = TdApi.InputMessageText(captionFt, false, false)
+            val content = TdApi.InputMessageText(captionFt, null, false, false)
             val ok = sendMessage(chatId, content)
             return if (ok) Result.success() else Result.retry()
         }
@@ -75,7 +75,7 @@ class SendWorker(ctx: Context, params: WorkerParameters) : Worker(ctx, params) {
         val msg = getMessage(srcChatId, srcMsgId) ?: return Result.retry()
         val (fileId, kindGuess, mimeGuess) = extractMediaFile(msg) ?: run {
             // no media actually -> send as text
-            val content = TdApi.InputMessageText(captionFt, false, false)
+            val content = TdApi.InputMessageText(captionFt, null, false, false)
             val ok = sendMessage(chatId, content)
             return if (ok) Result.success() else Result.retry()
         }
@@ -139,7 +139,7 @@ class SendWorker(ctx: Context, params: WorkerParameters) : Worker(ctx, params) {
             }
             Kind.OTHER -> {
                 // fallback: still try as document (if signature differs, keep as text)
-                val content = TdApi.InputMessageText(captionFt, false, false)
+                val content = TdApi.InputMessageText(captionFt, null, false, false)
                 sendMessage(chatId, content)
             }
         }
