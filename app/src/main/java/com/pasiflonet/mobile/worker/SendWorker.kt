@@ -4,7 +4,6 @@ import android.content.Context
 import android.graphics.BitmapFactory
 import android.media.MediaMetadataRetriever
 import android.net.Uri
-import android.util.Log
 import androidx.work.Worker
 import androidx.work.WorkerParameters
 import com.arthenica.ffmpegkit.FFmpegKit
@@ -16,6 +15,8 @@ import java.util.Locale
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 import kotlin.math.roundToInt
+import kotlin.math.max
+import kotlin.math.min
 
 class SendWorker(ctx: Context, params: WorkerParameters) : Worker(ctx, params) {
 
@@ -31,8 +32,8 @@ class SendWorker(ctx: Context, params: WorkerParameters) : Worker(ctx, params) {
         const val KEY_MEDIA_MIME = "media_mime"
         const val KEY_BLUR_RECTS = "blur_rects" // "l,t,r,b;..."
 
-        const val KEY_WM_X = "wm_x" // 0..1 or -1
-        const val KEY_WM_Y = "wm_y" // 0..1 or -1
+        const val KEY_WM_X = "wm_x" // normalized 0..1 or -1
+        const val KEY_WM_Y = "wm_y"
     }
 
     private enum class Kind { PHOTO, VIDEO, DOCUMENT }
@@ -40,7 +41,9 @@ class SendWorker(ctx: Context, params: WorkerParameters) : Worker(ctx, params) {
     private data class TdMedia(
         val localFile: File,
         val mime: String,
-        val kind: Kind
+        val kind: Kind,
+        val width: Int = 0,
+        val height: Int = 0
     )
 
     override fun doWork(): Result {
@@ -66,12 +69,12 @@ class SendWorker(ctx: Context, params: WorkerParameters) : Worker(ctx, params) {
         val username = targetUsernameRaw.removePrefix("@").trim()
         if (username.isBlank()) return Result.failure()
 
-        // Resolve @username -> chatId
-        val targetChatId = resolvePublicChat(username) ?: return Result.failure()
+        // 1) Resolve @username -> chatId
+        val targetChatId = resolvePublicChatId(username) ?: return Result.failure()
 
         val caption = TdApi.FormattedText(text, null)
 
-        // Text-only
+        // 2) Text only mode
         if (!sendWithMedia) {
             val content = TdApi.InputMessageText().apply {
                 this.text = caption
@@ -81,7 +84,7 @@ class SendWorker(ctx: Context, params: WorkerParameters) : Worker(ctx, params) {
             return sendContent(targetChatId, content)
         }
 
-        // Media required (NO text fallback)
+        // 3) Media requested: MUST send media. No fallback to text!
         val tdMedia: TdMedia? = if (mediaUriStr.isNotBlank()) {
             val inUri = runCatching { Uri.parse(mediaUriStr) }.getOrNull() ?: return Result.failure()
             val localIn = copyUriToCache(inUri, mediaMimeIn.ifBlank { "application/octet-stream" }) ?: return Result.failure()
@@ -90,28 +93,31 @@ class SendWorker(ctx: Context, params: WorkerParameters) : Worker(ctx, params) {
                 mediaMimeIn.lowercase(Locale.ROOT).startsWith("video/") -> Kind.VIDEO
                 else -> Kind.DOCUMENT
             }
-            TdMedia(localIn, mediaMimeIn.ifBlank { "application/octet-stream" }, kind)
+            val (w, h) = when (kind) {
+                Kind.PHOTO -> getImageSize(localIn) ?: Pair(0, 0)
+                Kind.VIDEO -> getVideoSize(localIn) ?: Pair(0, 0)
+                else -> Pair(0, 0)
+            }
+            TdMedia(localIn, mediaMimeIn.ifBlank { "application/octet-stream" }, kind, w, h)
         } else {
-            fetchMediaFromTelegram(srcChatId, srcMsgId)
+            fetchMediaFromTelegram(srcChatId, srcMsgId) ?: return Result.failure()
         }
 
-        if (tdMedia == null) {
-            Log.e("SendWorker", "sendWithMedia=true but media could not be resolved")
-            return Result.failure()
-        }
-
-        val editedFile = applyEdits(
+        // 4) Apply edits (blur + watermark). If no edits, keep original.
+        val edited = applyEditsIfNeeded(
             input = tdMedia.localFile,
             mime = tdMedia.mime,
             kind = tdMedia.kind,
+            w = tdMedia.width,
+            h = tdMedia.height,
             blurRectsStr = blurRectsStr,
             watermarkUriStr = watermarkUriStr,
             wmX = wmX,
             wmY = wmY
         ) ?: tdMedia.localFile
 
-        val inputFile = TdApi.InputFileLocal(editedFile.absolutePath)
-
+        // 5) Send edited media
+        val inputFile = TdApi.InputFileLocal(edited.absolutePath)
         val content: TdApi.InputMessageContent = when (tdMedia.kind) {
             Kind.PHOTO -> TdApi.InputMessagePhoto().apply { this.photo = inputFile; this.caption = caption }
             Kind.VIDEO -> TdApi.InputMessageVideo().apply { this.video = inputFile; this.caption = caption; this.supportsStreaming = true }
@@ -121,7 +127,7 @@ class SendWorker(ctx: Context, params: WorkerParameters) : Worker(ctx, params) {
         return sendContent(targetChatId, content)
     }
 
-    private fun resolvePublicChat(username: String): Long? {
+    private fun resolvePublicChatId(username: String): Long? {
         val latch = CountDownLatch(1)
         var chatId: Long = 0L
         TdLibManager.send(TdApi.SearchPublicChat(username)) { obj ->
@@ -145,33 +151,45 @@ class SendWorker(ctx: Context, params: WorkerParameters) : Worker(ctx, params) {
 
     private fun fetchMediaFromTelegram(srcChatId: Long, srcMsgId: Long): TdMedia? {
         val msg = getMessageSync(srcChatId, srcMsgId) ?: return null
-        val c = msg.content ?: return null
+        val content = msg.content ?: return null
 
-        val (fileId, mime, kind) = when (c) {
+        val (fileId, mime, kind, w, h) = when (content) {
             is TdApi.MessagePhoto -> {
-                val sizes = c.photo?.sizes ?: emptyArray()
+                val sizes = content.photo?.sizes ?: emptyArray()
                 val best = sizes.maxByOrNull { it.width * it.height } ?: return null
-                Triple(best.photo.id, "image/jpeg", Kind.PHOTO)
+                val id = best.photo.id
+                val ww = best.width
+                val hh = best.height
+                Quint(id, "image/jpeg", Kind.PHOTO, ww, hh)
             }
             is TdApi.MessageVideo -> {
-                val v = c.video ?: return null
-                Triple(v.video.id, v.mimeType?.ifBlank { "video/mp4" } ?: "video/mp4", Kind.VIDEO)
+                val v = content.video ?: return null
+                Quint(v.video.id, (v.mimeType?.ifBlank { "video/mp4" } ?: "video/mp4"), Kind.VIDEO, v.width, v.height)
             }
             is TdApi.MessageAnimation -> {
-                val a = c.animation ?: return null
-                Triple(a.animation.id, a.mimeType?.ifBlank { "video/mp4" } ?: "video/mp4", Kind.VIDEO)
+                val a = content.animation ?: return null
+                Quint(a.animation.id, (a.mimeType?.ifBlank { "video/mp4" } ?: "video/mp4"), Kind.VIDEO, a.width, a.height)
             }
             is TdApi.MessageDocument -> {
-                val d = c.document ?: return null
-                Triple(d.document.id, d.mimeType?.ifBlank { "application/octet-stream" } ?: "application/octet-stream", Kind.DOCUMENT)
+                val d = content.document ?: return null
+                Quint(d.document.id, (d.mimeType?.ifBlank { "application/octet-stream" } ?: "application/octet-stream"), Kind.DOCUMENT, 0, 0)
             }
             else -> return null
         }
 
         val downloaded = ensureFileDownloaded(fileId) ?: return null
         val cached = copyFileToCache(downloaded, mime) ?: downloaded
-        return TdMedia(cached, mime, kind)
+
+        val (ww, hh) = when (kind) {
+            Kind.PHOTO -> getImageSize(cached) ?: Pair(w, h)
+            Kind.VIDEO -> getVideoSize(cached) ?: Pair(w, h)
+            else -> Pair(0, 0)
+        }
+
+        return TdMedia(cached, mime, kind, ww, hh)
     }
+
+    private data class Quint(val fileId: Int, val mime: String, val kind: Kind, val w: Int, val h: Int)
 
     private fun getMessageSync(chatId: Long, msgId: Long): TdApi.Message? {
         val latch = CountDownLatch(1)
@@ -185,10 +203,9 @@ class SendWorker(ctx: Context, params: WorkerParameters) : Worker(ctx, params) {
     }
 
     private fun ensureFileDownloaded(fileId: Int, timeoutSec: Int = 180): File? {
-        // start download (async)
         TdLibManager.send(TdApi.DownloadFile(fileId, 32, 0, 0, false)) { }
-
         val deadline = System.currentTimeMillis() + timeoutSec * 1000L
+
         while (System.currentTimeMillis() < deadline) {
             val latch = CountDownLatch(1)
             var f: TdApi.File? = null
@@ -204,7 +221,7 @@ class SendWorker(ctx: Context, params: WorkerParameters) : Worker(ctx, params) {
                 val ff = File(path)
                 if (ff.exists() && ff.length() > 0) return ff
             }
-            Thread.sleep(400)
+            Thread.sleep(350)
         }
         return null
     }
@@ -244,27 +261,189 @@ class SendWorker(ctx: Context, params: WorkerParameters) : Worker(ctx, params) {
         }
     }
 
-    private data class PxRect(val x: Int, val y: Int, val w: Int, val h: Int)
+    private fun applyEditsIfNeeded(
+        input: File,
+        mime: String,
+        kind: Kind,
+        w: Int,
+        h: Int,
+        blurRectsStr: String,
+        watermarkUriStr: String,
+        wmX: Float,
+        wmY: Float
+    ): File? {
+        val hasBlur = blurRectsStr.isNotBlank() && (kind == Kind.VIDEO || kind == Kind.PHOTO)
+        val hasWm = watermarkUriStr.isNotBlank() && (kind == Kind.VIDEO || kind == Kind.PHOTO)
+        if (!hasBlur && !hasWm) return null
 
-    private fun parseRects(rectsStr: String, w: Int, h: Int): List<PxRect> {
-        if (rectsStr.isBlank()) return emptyList()
-        val out = ArrayList<PxRect>()
-        for (part in rectsStr.split(";")) {
-            val p = part.split(",")
-            if (p.size != 4) continue
-            val l = p[0].toFloatOrNull() ?: continue
-            val t = p[1].toFloatOrNull() ?: continue
-            val r = p[2].toFloatOrNull() ?: continue
-            val b = p[3].toFloatOrNull() ?: continue
-            if (r <= l || b <= t) continue
+        val wmFile = if (hasWm) resolveWatermarkFile(watermarkUriStr) else null
+        if (hasWm && wmFile == null) return null
 
-            val x = (l.coerceIn(0f, 1f) * w).roundToInt().coerceIn(0, w - 2)
-            val y = (t.coerceIn(0f, 1f) * h).roundToInt().coerceIn(0, h - 2)
-            val ww = ((r - l).coerceAtLeast(0.001f) * w).roundToInt().coerceAtLeast(2).coerceIn(2, w - x)
-            val hh = ((b - t).coerceAtLeast(0.001f) * h).roundToInt().coerceAtLeast(2).coerceIn(2, h - y)
-            out.add(PxRect(x, y, ww, hh))
+        val (vw, vh) = when (kind) {
+            Kind.PHOTO -> if (w > 0 && h > 0) Pair(w, h) else (getImageSize(input) ?: return null)
+            Kind.VIDEO -> if (w > 0 && h > 0) Pair(w, h) else (getVideoSize(input) ?: return null)
+            else -> return null
         }
-        return out
+
+        val wmW = (vw * 0.22f).roundToInt().coerceAtLeast(48)
+        val (wmPx, wmPy) = computeWatermarkXY(vw, vh, wmW, wmX, wmY)
+
+        val filter = buildBlurAndWatermarkFilter(
+            vw = vw,
+            vh = vh,
+            blurRectsStr = blurRectsStr,
+            hasWm = (wmFile != null),
+            wmW = wmW,
+            wmPx = wmPx,
+            wmPy = wmPy
+        ) ?: return null
+
+        return when (kind) {
+            Kind.VIDEO -> {
+                val out = File(applicationContext.cacheDir, "edit_${System.currentTimeMillis()}.mp4")
+                val cmd = mutableListOf<String>()
+                cmd += "-y"
+                cmd += "-i"; cmd += input.absolutePath
+                if (wmFile != null) { cmd += "-i"; cmd += wmFile.absolutePath }
+                cmd += "-filter_complex"; cmd += filter
+                cmd += "-map"; cmd += "[vout]"
+                cmd += "-map"; cmd += "0:a?"
+                cmd += "-c:v"; cmd += "libx264"
+                cmd += "-crf"; cmd += "23"
+                cmd += "-preset"; cmd += "veryfast"
+                cmd += "-c:a"; cmd += "aac"
+                cmd += out.absolutePath
+
+                val session = FFmpegKit.execute(cmd.joinToString(" "))
+                val rc = session.returnCode
+                if (rc != null && rc.isValueSuccess) out else null
+            }
+
+            Kind.PHOTO -> {
+                val out = File(applicationContext.cacheDir, "edit_${System.currentTimeMillis()}.jpg")
+                val cmd = mutableListOf<String>()
+                cmd += "-y"
+                cmd += "-i"; cmd += input.absolutePath
+                if (wmFile != null) { cmd += "-i"; cmd += wmFile.absolutePath }
+                cmd += "-filter_complex"; cmd += filter
+                cmd += "-map"; cmd += "[vout]"
+                cmd += "-frames:v"; cmd += "1"
+                cmd += "-q:v"; cmd += "2"
+                cmd += out.absolutePath
+
+                val session = FFmpegKit.execute(cmd.joinToString(" "))
+                val rc = session.returnCode
+                if (rc != null && rc.isValueSuccess) out else null
+            }
+
+            else -> null
+        }
+    }
+
+    private fun buildBlurAndWatermarkFilter(
+        vw: Int,
+        vh: Int,
+        blurRectsStr: String,
+        hasWm: Boolean,
+        wmW: Int,
+        wmPx: Int,
+        wmPy: Int
+    ): String? {
+        val rects = parseRects(blurRectsStr).mapNotNull { rr ->
+            val x = (rr[0] * vw).roundToInt().coerceIn(0, vw - 2)
+            val y = (rr[1] * vh).roundToInt().coerceIn(0, vh - 2)
+            val w = ((rr[2] - rr[0]) * vw).roundToInt().coerceAtLeast(2).coerceIn(2, vw - x)
+            val h = ((rr[3] - rr[1]) * vh).roundToInt().coerceAtLeast(2).coerceIn(2, vh - y)
+            intArrayOf(x, y, w, h)
+        }
+
+        // only watermark
+        if (rects.isEmpty()) {
+            return if (hasWm) {
+                // [0]=media, [1]=wm
+                "[1:v]scale=${wmW}:-1[wm];[0:v][wm]overlay=${wmPx}:${wmPy}[vout]"
+            } else {
+                // nothing
+                null
+            }
+        }
+
+        // blur rectangles + optional watermark
+        val n = rects.size
+        val sb = StringBuilder()
+
+        sb.append("[0:v]split=").append(n + 1)
+        for (i in 0 until (n + 1)) sb.append("[v").append(i).append("]")
+        sb.append(";")
+
+        for (i in 0 until n) {
+            val r = rects[i]
+            val x = r[0]; val y = r[1]; val w = r[2]; val h = r[3]
+            sb.append("[v").append(i + 1).append("]")
+            sb.append("crop=").append(w).append(":").append(h).append(":").append(x).append(":").append(y)
+            sb.append(",boxblur=10:1")
+            sb.append("[b").append(i).append("];")
+        }
+
+        var base = "[v0]"
+        for (i in 0 until n) {
+            val r = rects[i]
+            val x = r[0]; val y = r[1]
+            sb.append(base)
+                .append("[b").append(i).append("]")
+                .append("overlay=").append(x).append(":").append(y)
+                .append("[o").append(i).append("];")
+            base = "[o$i]"
+        }
+
+        if (hasWm) {
+            sb.append(base).append("copy[vb];")
+            sb.append("[1:v]scale=").append(wmW).append(":-1[wm];")
+            sb.append("[vb][wm]overlay=").append(wmPx).append(":").append(wmPy).append("[vout]")
+        } else {
+            sb.append(base).append("copy[vout]")
+        }
+
+        return sb.toString()
+    }
+
+    private fun parseRects(rectsStr: String): List<FloatArray> {
+        if (rectsStr.isBlank()) return emptyList()
+        return rectsStr.split(";").mapNotNull { part ->
+            val p = part.split(",")
+            if (p.size != 4) return@mapNotNull null
+            val l = p[0].toFloatOrNull() ?: return@mapNotNull null
+            val t = p[1].toFloatOrNull() ?: return@mapNotNull null
+            val r = p[2].toFloatOrNull() ?: return@mapNotNull null
+            val b = p[3].toFloatOrNull() ?: return@mapNotNull null
+            if (r <= l || b <= t) return@mapNotNull null
+            floatArrayOf(l, t, r, b)
+        }
+    }
+
+    private fun resolveWatermarkFile(wm: String): File? {
+        return try {
+            val u = Uri.parse(wm)
+            when (u.scheme?.lowercase(Locale.ROOT)) {
+                "content" -> copyUriToCache(u, "image/png")
+                "file" -> File(u.path ?: return null).takeIf { it.exists() }
+                else -> File(wm).takeIf { it.exists() }
+            }
+        } catch (_: Throwable) {
+            File(wm).takeIf { it.exists() }
+        }
+    }
+
+    private fun computeWatermarkXY(w: Int, h: Int, wmW: Int, wmX: Float, wmY: Float): Pair<Int, Int> {
+        val pad = (w * 0.02f).roundToInt().coerceAtLeast(12)
+        if (wmX < 0f || wmY < 0f) {
+            val x = (w - wmW - pad).coerceAtLeast(0)
+            val y = (h - (wmW / 2) - pad).coerceAtLeast(0)
+            return Pair(x, y)
+        }
+        val x = (wmX.coerceIn(0f, 1f) * w).roundToInt().coerceIn(0, max(0, w - 2))
+        val y = (wmY.coerceIn(0f, 1f) * h).roundToInt().coerceIn(0, max(0, h - 2))
+        return Pair(x, y)
     }
 
     private fun getVideoSize(f: File): Pair<Int, Int>? {
@@ -288,146 +467,5 @@ class SendWorker(ctx: Context, params: WorkerParameters) : Worker(ctx, params) {
         } catch (_: Throwable) {
             null
         }
-    }
-
-    private fun resolveWatermarkFile(wm: String): File? {
-        return try {
-            val u = Uri.parse(wm)
-            when (u.scheme?.lowercase(Locale.ROOT)) {
-                "content" -> copyUriToCache(u, "image/png")
-                "file" -> File(u.path ?: return null).takeIf { it.exists() }
-                else -> File(wm).takeIf { it.exists() }
-            }
-        } catch (_: Throwable) {
-            File(wm).takeIf { it.exists() }
-        }
-    }
-
-    private fun wmXY(w: Int, h: Int, wmW: Int, wmX: Float, wmY: Float): Pair<Int, Int> {
-        val pad = (w * 0.02f).roundToInt().coerceAtLeast(12)
-        if (wmX < 0f || wmY < 0f) {
-            val x = (w - wmW - pad).coerceAtLeast(0)
-            val y = (h - (wmW / 2) - pad).coerceAtLeast(0)
-            return Pair(x, y)
-        }
-        val x = (wmX.coerceIn(0f, 1f) * w).roundToInt().coerceIn(0, w - 2)
-        val y = (wmY.coerceIn(0f, 1f) * h).roundToInt().coerceIn(0, h - 2)
-        return Pair(x, y)
-    }
-
-    private fun applyEdits(
-        input: File,
-        mime: String,
-        kind: Kind,
-        blurRectsStr: String,
-        watermarkUriStr: String,
-        wmX: Float,
-        wmY: Float
-    ): File? {
-        val wmFile = if (watermarkUriStr.isNotBlank()) resolveWatermarkFile(watermarkUriStr) else null
-        val hasWm = (wmFile != null)
-        val hasBlur = blurRectsStr.isNotBlank()
-
-        if (!hasWm && !hasBlur) return null
-
-        return when (kind) {
-            Kind.PHOTO -> {
-                val (iw, ih) = getImageSize(input) ?: return null
-                val rects = parseRects(blurRectsStr, iw, ih)
-                val wmW = (iw * 0.22f).roundToInt().coerceAtLeast(48)
-                val (px, py) = wmXY(iw, ih, wmW, wmX, wmY)
-
-                val filter = buildFilter(rects, hasWm, wmW, px, py)
-                val out = File(applicationContext.cacheDir, "img_${System.currentTimeMillis()}.jpg")
-
-                val cmd = mutableListOf<String>()
-                cmd += "-y"
-                cmd += "-i"; cmd += input.absolutePath
-                if (hasWm) { cmd += "-i"; cmd += wmFile!!.absolutePath }
-                cmd += "-filter_complex"; cmd += filter
-                cmd += "-map"; cmd += "[vout]"
-                cmd += "-frames:v"; cmd += "1"
-                cmd += "-q:v"; cmd += "2"
-                cmd += out.absolutePath
-
-                val session = FFmpegKit.execute(cmd.joinToString(" "))
-                val rc = session.returnCode
-                if (rc != null && rc.isValueSuccess) out else null
-            }
-
-            Kind.VIDEO -> {
-                val (vw, vh) = getVideoSize(input) ?: return null
-                val rects = parseRects(blurRectsStr, vw, vh)
-                val wmW = (vw * 0.22f).roundToInt().coerceAtLeast(48)
-                val (px, py) = wmXY(vw, vh, wmW, wmX, wmY)
-
-                val filter = buildFilter(rects, hasWm, wmW, px, py)
-                val out = File(applicationContext.cacheDir, "vid_${System.currentTimeMillis()}.mp4")
-
-                val cmd = mutableListOf<String>()
-                cmd += "-y"
-                cmd += "-i"; cmd += input.absolutePath
-                if (hasWm) { cmd += "-i"; cmd += wmFile!!.absolutePath }
-                cmd += "-filter_complex"; cmd += filter
-                cmd += "-map"; cmd += "[vout]"
-                cmd += "-map"; cmd += "0:a?"
-                cmd += "-c:v"; cmd += "libx264"
-                cmd += "-crf"; cmd += "23"
-                cmd += "-preset"; cmd += "veryfast"
-                cmd += "-c:a"; cmd += "aac"
-                cmd += out.absolutePath
-
-                val session = FFmpegKit.execute(cmd.joinToString(" "))
-                val rc = session.returnCode
-                if (rc != null && rc.isValueSuccess) out else null
-            }
-
-            Kind.DOCUMENT -> null
-        }
-    }
-
-    private fun buildFilter(rects: List<PxRect>, hasWm: Boolean, wmW: Int, wmXpx: Int, wmYpx: Int): String {
-        // no blur
-        if (rects.isEmpty()) {
-            return if (hasWm) {
-                "[1:v]scale=${wmW}:-1[wm];[0:v][wm]overlay=${wmXpx}:${wmYpx}[vout]"
-            } else {
-                "[0:v]copy[vout]"
-            }
-        }
-
-        val n = rects.size
-        val sb = StringBuilder()
-
-        sb.append("[0:v]split=").append(n + 1)
-        for (i in 0 until (n + 1)) sb.append("[v").append(i).append("]")
-        sb.append(";")
-
-        for (i in 0 until n) {
-            val r = rects[i]
-            sb.append("[v").append(i + 1).append("]")
-            sb.append("crop=").append(r.w).append(":").append(r.h).append(":").append(r.x).append(":").append(r.y)
-            sb.append(",boxblur=10:1")
-            sb.append("[b").append(i).append("];")
-        }
-
-        var base = "[v0]"
-        for (i in 0 until n) {
-            val r = rects[i]
-            sb.append(base)
-                .append("[b").append(i).append("]")
-                .append("overlay=").append(r.x).append(":").append(r.y)
-                .append("[o").append(i).append("];")
-            base = "[o$i]"
-        }
-
-        if (hasWm) {
-            sb.append(base).append("copy[vb];")
-            sb.append("[1:v]scale=").append(wmW).append(":-1[wm];")
-            sb.append("[vb][wm]overlay=").append(wmXpx).append(":").append(wmYpx).append("[vout]")
-        } else {
-            sb.append(base).append("copy[vout]")
-        }
-        return sb.toString()
     }
 }
