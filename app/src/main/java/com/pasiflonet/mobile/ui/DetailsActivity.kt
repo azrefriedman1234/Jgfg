@@ -447,4 +447,104 @@ class DetailsActivity : AppCompatActivity() {
      * - for images: can be applied later (אם תרצה ניישם גם על תמונה בפועל)
      * - for video: passed to worker as normalized rects for ffmpeg blur
      */
+
+
+
+    // --- Compat: TDLib minithumbnail can be headerless JPEG ---
+    private fun decodeMiniThumbCompat(b64: String?): android.graphics.Bitmap? {
+        if (b64.isNullOrBlank()) return null
+        return try {
+            val raw = android.util.Base64.decode(b64, android.util.Base64.DEFAULT)
+
+            // try direct decode
+            android.graphics.BitmapFactory.decodeByteArray(raw, 0, raw.size) ?: run {
+                // headerless JPEG -> prepend JFIF header
+                val jfif = byteArrayOf(
+                    0xFF.toByte(), 0xD8.toByte(), 0xFF.toByte(), 0xE0.toByte(),
+                    0x00, 0x10, 0x4A, 0x46, 0x49, 0x46, 0x00, 0x01, 0x01, 0x00,
+                    0x00, 0x01, 0x00, 0x01, 0x00, 0x00
+                )
+                val full = jfif + raw
+                android.graphics.BitmapFactory.decodeByteArray(full, 0, full.size)
+            }
+        } catch (_: Throwable) {
+            null
+        }
+    }
+
+
+    // --- Compat: clearer MLKit translation flow ---
+    private fun translateToHebrewCompat() {
+        val src = etCaption.text?.toString().orEmpty().trim()
+        if (src.isBlank()) {
+            com.google.android.material.snackbar.Snackbar
+                .make(ivPreview, "אין טקסט לתרגום", com.google.android.material.snackbar.Snackbar.LENGTH_SHORT)
+                .show()
+            return
+        }
+
+        // If already Hebrew - skip
+        val hasHeb = src.any { it in '\u0590'..'\u05FF' }
+        if (hasHeb) {
+            com.google.android.material.snackbar.Snackbar
+                .make(ivPreview, "הטקסט כבר בעברית", com.google.android.material.snackbar.Snackbar.LENGTH_SHORT)
+                .show()
+            return
+        }
+
+        com.google.android.material.snackbar.Snackbar
+            .make(ivPreview, "🔎 מזהה שפה...", com.google.android.material.snackbar.Snackbar.LENGTH_SHORT)
+            .show()
+
+        langId.identifyLanguage(src)
+            .addOnSuccessListener { langCode ->
+                val srcTag = if (langCode == "und") "en" else langCode
+                val srcLang =
+                    com.google.mlkit.nl.translate.TranslateLanguage.fromLanguageTag(srcTag)
+                        ?: com.google.mlkit.nl.translate.TranslateLanguage.ENGLISH
+                val tgtLang = com.google.mlkit.nl.translate.TranslateLanguage.HEBREW
+
+                val opts = com.google.mlkit.nl.translate.TranslatorOptions.Builder()
+                    .setSourceLanguage(srcLang)
+                    .setTargetLanguage(tgtLang)
+                    .build()
+
+                translator?.close()
+                translator = com.google.mlkit.nl.translate.Translation.getClient(opts)
+                val tr = translator!!
+
+                val cond = com.google.mlkit.common.model.DownloadConditions.Builder().build()
+
+                com.google.android.material.snackbar.Snackbar
+                    .make(ivPreview, "⬇️ מוריד מודל ומתרגם...", com.google.android.material.snackbar.Snackbar.LENGTH_LONG)
+                    .show()
+
+                tr.downloadModelIfNeeded(cond)
+                    .addOnSuccessListener {
+                        tr.translate(src)
+                            .addOnSuccessListener { out ->
+                                etCaption.setText(out)
+                                com.google.android.material.snackbar.Snackbar
+                                    .make(ivPreview, "✅ תורגם לעברית", com.google.android.material.snackbar.Snackbar.LENGTH_SHORT)
+                                    .show()
+                            }
+                            .addOnFailureListener { e ->
+                                com.google.android.material.snackbar.Snackbar
+                                    .make(ivPreview, "❌ תרגום נכשל: ${e.message}", com.google.android.material.snackbar.Snackbar.LENGTH_LONG)
+                                    .show()
+                            }
+                    }
+                    .addOnFailureListener { e ->
+                        com.google.android.material.snackbar.Snackbar
+                            .make(ivPreview, "❌ הורדת מודל נכשלה (אינטרנט/Play): ${e.message}", com.google.android.material.snackbar.Snackbar.LENGTH_LONG)
+                            .show()
+                    }
+            }
+            .addOnFailureListener { e ->
+                com.google.android.material.snackbar.Snackbar
+                    .make(ivPreview, "❌ זיהוי שפה נכשל: ${e.message}", com.google.android.material.snackbar.Snackbar.LENGTH_LONG)
+                    .show()
+            }
+    }
+
 }
