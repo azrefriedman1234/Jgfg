@@ -413,6 +413,10 @@ class SendWorker(appContext: Context, params: WorkerParameters) : Worker(appCont
         val ok = ReturnCode.isSuccess(rc)
         if (!ok) {
             logE("FFmpeg failed rc=$rc")
+            throw RuntimeException("FFmpeg failed rc=$rc")
+        }
+        if (!ok) {
+            logE("FFmpeg failed rc=$rc")
             logE("FFmpeg logs:\n" + session.allLogsAsString)
         } else {
             logI("FFmpeg OK -> ${output.name} size=${output.length()}")
