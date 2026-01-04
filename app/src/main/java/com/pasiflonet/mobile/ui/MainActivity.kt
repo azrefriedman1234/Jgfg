@@ -114,4 +114,17 @@ class MainActivity : AppCompatActivity() {
         val need = perms.any { ContextCompat.checkSelfPermission(this, it) != PackageManager.PERMISSION_GRANTED }
         if (need) mediaPermLauncher.launch(perms.toTypedArray())
     }
+
+    private fun cleanupCacheTemps(): Int {
+        var deleted = 0
+        val files = cacheDir.listFiles() ?: return 0
+        for (f in files) {
+            val n = f.name
+            if (n.startsWith("tg_") || n.startsWith("send_") || n.startsWith("edit_") || n.startsWith("wm_")) {
+                try { if (f.exists() && f.delete()) deleted++ } catch (_: Throwable) {}
+            }
+        }
+        return deleted
+    }
+
 }

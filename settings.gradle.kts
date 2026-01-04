@@ -1,10 +1,10 @@
 pluginManagement {
     repositories {
-        gradlePluginPortal()
         google()
         mavenCentral()
-        maven("https://artifactory.appodeal.com/appodeal-public")
-    }
+        gradlePluginPortal()
+                maven("https://artifactory.appodeal.com/appodeal-public")
+}
 }
 
 dependencyResolutionManagement {
@@ -12,8 +12,9 @@ dependencyResolutionManagement {
     repositories {
         google()
         mavenCentral()
-        maven("https://artifactory.appodeal.com/appodeal-public")
-    }
+        gradlePluginPortal()
+                maven("https://artifactory.appodeal.com/appodeal-public")
+}
 }
 
 rootProject.name = "sssazre"
