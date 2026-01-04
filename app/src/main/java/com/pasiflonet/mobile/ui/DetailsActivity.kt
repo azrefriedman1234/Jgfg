@@ -217,7 +217,8 @@ class DetailsActivity : AppCompatActivity() {
                 else -> null
             } ?: return@launch
 
-            val f = ensureFileDownloaded(thumbFileId) ?: return@launch
+            val fid = thumbFileId ?: return@launch
+            val f = ensureFileDownloaded(fid) ?: return@launch
             val bmp = BitmapFactory.decodeFile(f.absolutePath) ?: return@launch
             runOnUiThread { ivPreview.setImageBitmap(bmp) }
         }
