@@ -1,70 +1,59 @@
 package com.pasiflonet.mobile.td
 
 import android.content.Context
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.StateFlow
+import android.util.Log
 import org.drinkless.tdlib.Client
 import org.drinkless.tdlib.TdApi
 import java.util.concurrent.CopyOnWriteArrayList
 
 object TdLibManager {
+    private const val TAG = "TdLibManager"
 
-    @Volatile private var inited = false
-    @Volatile private var client: Client? = null
+    private var appCtx: Context? = null
+    private var client: Client? = null
 
-    private val _authState = MutableStateFlow<TdApi.AuthorizationState?>(null)
-    val authState: StateFlow<TdApi.AuthorizationState?> = _authState
-
-    private val updateListeners = CopyOnWriteArrayList<(TdApi.Object) -> Unit>()
+    private val listeners = CopyOnWriteArrayList<(TdApi.Object) -> Unit>()
 
     fun init(ctx: Context) {
-        // ctx not needed right now, but keep signature stable
-        inited = true
+        appCtx = ctx.applicationContext
     }
 
     fun ensureClient() {
-        if (!inited) return
         if (client != null) return
 
-        synchronized(this) {
-            if (client != null) return
+        try {
+            Client.setLogVerbosityLevel(0)
+        } catch (_: Throwable) {}
 
-            val updatesHandler = Client.ResultHandler { obj ->
-                // Track auth state
-                if (obj is TdApi.UpdateAuthorizationState) {
-                    _authState.tryEmit(obj.authorizationState)
-                }
-                // Notify UI listeners for TDLib updates
-                notifyUpdate(obj)
+        val updatesHandler = Client.ResultHandler { obj ->
+            try {
+                for (l in listeners) l(obj)
+            } catch (t: Throwable) {
+                Log.e(TAG, "listener crash", t)
             }
-
-            val exceptionHandler = Client.ExceptionHandler { e ->
-                e.printStackTrace()
-            }
-
-            client = Client.create(updatesHandler, exceptionHandler, exceptionHandler)
         }
+        val exceptionHandler = Client.ExceptionHandler { e ->
+            Log.e(TAG, "TDLib exception", e)
+        }
+
+        client = Client.create(updatesHandler, exceptionHandler, exceptionHandler)
+        Log.d(TAG, "TDLib client created")
     }
 
     fun addUpdateListener(l: (TdApi.Object) -> Unit) {
-        updateListeners.add(l)
+        listeners.add(l)
     }
 
     fun removeUpdateListener(l: (TdApi.Object) -> Unit) {
-        updateListeners.remove(l)
+        listeners.remove(l)
     }
 
-    private fun notifyUpdate(obj: TdApi.Object) {
-        val n = obj.javaClass.simpleName
-        if (!n.startsWith("Update")) return
-        for (l in updateListeners) {
-            try { l(obj) } catch (_: Throwable) {}
-        }
-    }
+    fun send(f: TdApi.Function<out TdApi.Object>, cb: (TdApi.Object) -> Unit) {
+        val c = client ?: run {
+            ensureClient()
+            client
+        } ?: return
 
-    fun send(fn: TdApi.Function<out TdApi.Object>, cb: (TdApi.Object) -> Unit = {}) {
-        ensureClient()
-        val c = client ?: return
-        c.send(fn) { obj -> cb(obj) }
+        c.send(f, Client.ResultHandler { obj -> cb(obj) })
     }
 }

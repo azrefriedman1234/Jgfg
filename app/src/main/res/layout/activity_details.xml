@@ -2,7 +2,6 @@
 <androidx.constraintlayout.widget.ConstraintLayout
     xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
-    android:id="@+id/root"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:padding="10dp">
@@ -48,132 +47,85 @@
         app:layout_constraintTop_toTopOf="parent"
         app:layout_constraintBottom_toBottomOf="parent">
 
-        <androidx.core.widget.NestedScrollView
+        <TextView
+            android:id="@+id/tvMeta"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:textSize="13sp"
+            android:alpha="0.85"
+            android:paddingBottom="8dp"/>
+
+        <com.google.android.material.textfield.TextInputLayout
             android:layout_width="match_parent"
             android:layout_height="0dp"
-            android:layout_weight="1"
-            android:fillViewport="true">
+            android:layout_weight="1">
 
-            <LinearLayout
+            <com.google.android.material.textfield.TextInputEditText
+                android:id="@+id/etCaption"
                 android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:orientation="vertical">
+                android:layout_height="match_parent"
+                android:gravity="top|start"
+                android:inputType="textMultiLine"
+                android:minLines="6"
+                android:textSize="16sp"
+                android:hint="טקסט / כיתוב"/>
+        </com.google.android.material.textfield.TextInputLayout>
 
-                <TextView
-                    android:id="@+id/tvMeta"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:textSize="13sp"
-                    android:alpha="0.85"
-                    android:paddingBottom="8dp"/>
-
-                <com.google.android.material.textfield.TextInputLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content">
-
-                    <com.google.android.material.textfield.TextInputEditText
-                        android:id="@+id/etCaption"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:minLines="6"
-                        android:gravity="top|start"
-                        android:inputType="textMultiLine"
-                        android:textSize="16sp"
-                        android:hint="טקסט לשליחה / כיתוב"/>
-                </com.google.android.material.textfield.TextInputLayout>
-
-                <Space android:layout_width="1dp" android:layout_height="10dp"/>
-
-                <!-- תמיד רואים את המתג; אם אין מדיה הוא יהיה disabled -->
-                <com.google.android.material.switchmaterial.SwitchMaterial
-                    android:id="@+id/swSendWithMedia"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:text="שלח עם מדיה (אם קיימת)"
-                    android:checked="true"/>
-
-                <TextView
-                    android:id="@+id/tvCleanResult"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:textSize="12sp"
-                    android:alpha="0.8"
-                    android:paddingTop="6dp"
-                    android:text=""/>
-            </LinearLayout>
-        </androidx.core.widget.NestedScrollView>
+        <com.google.android.material.switchmaterial.SwitchMaterial
+            android:id="@+id/swSendWithMedia"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="שלח עם מדיה (אם קיימת)"
+            android:checked="true"/>
 
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:orientation="vertical">
+            android:orientation="horizontal"
+            android:paddingTop="8dp">
 
-            <LinearLayout
-                android:layout_width="match_parent"
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btnWatermark"
+                android:layout_width="0dp"
                 android:layout_height="wrap_content"
-                android:orientation="horizontal">
+                android:layout_weight="1"
+                android:text="סימן מים"/>
 
-                <com.google.android.material.button.MaterialButton
-                    android:id="@+id/btnWatermark"
-                    android:layout_width="0dp"
-                    android:layout_height="wrap_content"
-                    android:layout_weight="1"
-                    android:text="סימן מים"/>
-
-                <Space android:layout_width="10dp" android:layout_height="1dp"/>
-
-                <com.google.android.material.button.MaterialButton
-                    android:id="@+id/btnBlur"
-                    android:layout_width="0dp"
-                    android:layout_height="wrap_content"
-                    android:layout_weight="1"
-                    android:text="טשטוש"/>
-            </LinearLayout>
-
-            <LinearLayout
-                android:layout_width="match_parent"
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btnBlur"
+                android:layout_width="0dp"
                 android:layout_height="wrap_content"
-                android:orientation="horizontal">
-
-                <com.google.android.material.button.MaterialButton
-                    android:id="@+id/btnTranslate"
-                    android:layout_width="0dp"
-                    android:layout_height="wrap_content"
-                    android:layout_weight="1"
-                    android:text="תרגום אונליין"/>
-
-                <Space android:layout_width="10dp" android:layout_height="1dp"/>
-
-                <com.google.android.material.button.MaterialButton
-                    android:id="@+id/btnSend"
-                    android:layout_width="0dp"
-                    android:layout_height="wrap_content"
-                    android:layout_weight="1"
-                    android:text="שלח"/>
-            </LinearLayout>
-
-            <LinearLayout
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:orientation="horizontal">
-
-                <com.google.android.material.button.MaterialButton
-                    android:id="@+id/btnCleanTmp"
-                    android:layout_width="0dp"
-                    android:layout_height="wrap_content"
-                    android:layout_weight="1"
-                    android:text="נקה זמניים"/>
-
-                <Space android:layout_width="10dp" android:layout_height="1dp"/>
-
-                <com.google.android.material.button.MaterialButton
-                    android:id="@+id/btnClose"
-                    android:layout_width="0dp"
-                    android:layout_height="wrap_content"
-                    android:layout_weight="1"
-                    android:text="סגור"/>
-            </LinearLayout>
+                android:layout_weight="1"
+                android:text="טשטוש"/>
         </LinearLayout>
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal">
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btnTranslate"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="תרגם (בתוך האפליקציה)"/>
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btnSend"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="שלח"/>
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btnClose"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="סגור"/>
+        </LinearLayout>
+
     </LinearLayout>
 
 </androidx.constraintlayout.widget.ConstraintLayout>
