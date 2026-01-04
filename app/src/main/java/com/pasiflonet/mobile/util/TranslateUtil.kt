@@ -1,68 +1,43 @@
 package com.pasiflonet.mobile.util
 
-import android.content.Context
-import com.google.mlkit.nl.languageid.LanguageIdentification
-import com.google.mlkit.nl.translate.TranslateLanguage
-import com.google.mlkit.nl.translate.Translation
-import com.google.mlkit.nl.translate.Translator
-import com.google.mlkit.nl.translate.TranslatorOptions
+import org.json.JSONArray
+import java.net.HttpURLConnection
+import java.net.URL
+import java.net.URLEncoder
 
 object TranslateUtil {
 
     /**
-     * Translate any text to Hebrew (on-device, free).
-     * Flow:
-     * 1) Identify language
-     * 2) If already Hebrew -> return original
-     * 3) Create translator src->he and download model if needed
+     * תרגום אונליין ללא מודל וללא API Key (endpoint לא רשמי).
+     * אם Google יחסום ברגע נתון – הפונקציה תחזיר null במקום להפיל את האפליקציה.
      */
-    fun toHebrew(
-        ctx: Context,
-        text: String,
-        onResult: (String) -> Unit,
-        onError: (Throwable) -> Unit
-    ) {
-        val t = text.trim()
-        if (t.isBlank()) {
-            onResult(text)
-            return
+    fun translateToHebrewOnline(text: String): String? {
+        val src = text.trim()
+        if (src.isBlank()) return ""
+
+        return try {
+            val q = URLEncoder.encode(src, "UTF-8")
+            val u = URL("https://translate.googleapis.com/translate_a/single?client=gtx&sl=auto&tl=iw&dt=t&q=$q")
+            val conn = (u.openConnection() as HttpURLConnection).apply {
+                connectTimeout = 12000
+                readTimeout = 12000
+                requestMethod = "GET"
+                setRequestProperty("User-Agent", "Mozilla/5.0")
+            }
+            val body = conn.inputStream.bufferedReader(Charsets.UTF_8).readText()
+            conn.disconnect()
+
+            // פורמט: [[["שלום", "hello", ...], ...], ...]
+            val arr = JSONArray(body)
+            val parts = arr.getJSONArray(0)
+            val sb = StringBuilder()
+            for (i in 0 until parts.length()) {
+                val seg = parts.getJSONArray(i)
+                sb.append(seg.getString(0))
+            }
+            sb.toString()
+        } catch (_: Throwable) {
+            null
         }
-
-        val identifier = LanguageIdentification.getClient()
-        identifier.identifyLanguage(t)
-            .addOnSuccessListener { lang ->
-                if (lang == "he" || lang == "iw") {
-                    onResult(text)
-                    return@addOnSuccessListener
-                }
-
-                val src = if (lang == "und" || lang.isBlank()) TranslateLanguage.ENGLISH else lang
-                val srcCode = TranslateLanguage.fromLanguageTag(src) ?: TranslateLanguage.ENGLISH
-                val opts = TranslatorOptions.Builder()
-                    .setSourceLanguage(srcCode)
-                    .setTargetLanguage(TranslateLanguage.HEBREW)
-                    .build()
-
-                val translator: Translator = Translation.getClient(opts)
-                translator.downloadModelIfNeeded()
-                    .addOnSuccessListener {
-                        translator.translate(text)
-                            .addOnSuccessListener { out ->
-                                translator.close()
-                                onResult(out)
-                            }
-                            .addOnFailureListener { e ->
-                                translator.close()
-                                onError(e)
-                            }
-                    }
-                    .addOnFailureListener { e ->
-                        translator.close()
-                        onError(e)
-                    }
-            }
-            .addOnFailureListener { e ->
-                onError(e)
-            }
     }
 }

@@ -23,6 +23,7 @@ import com.pasiflonet.mobile.R
 import com.pasiflonet.mobile.data.AppPrefs
 import com.pasiflonet.mobile.td.TdLibManager
 import com.pasiflonet.mobile.worker.SendWorker
+import com.pasiflonet.mobile.util.TranslateUtil
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import org.drinkless.tdlib.TdApi
