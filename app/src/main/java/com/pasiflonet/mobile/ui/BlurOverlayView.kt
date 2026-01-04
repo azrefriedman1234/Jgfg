@@ -101,4 +101,12 @@ class BlurOverlayView @JvmOverloads constructor(
         }
         return false
     }
+    /** DetailsActivity uses this to enable/disable drawing blur rectangles. */
+    fun setDrawEnabled(enabled: Boolean) {
+        blurMode = enabled
+        allowRectangles = enabled
+        visibility = if (enabled) View.VISIBLE else View.GONE
+        invalidate()
+    }
+
 }
