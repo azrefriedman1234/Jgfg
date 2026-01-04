@@ -51,13 +51,13 @@ class SendWorker(appContext: Context, params: WorkerParameters) : Worker(appCont
 
             val target = inputData.getString(KEY_TARGET_USERNAME).orEmpty().trim().removePrefix("@")
             val text = inputData.getString(KEY_TEXT).orEmpty()
-        val captionFmt = text                       // String
+        captionText = text  // keep caption as String source
         val lpOpts = TdApi.LinkPreviewOptions()         // TDLib new API
 
             val sendWithMedia = inputData.getBoolean(KEY_SEND_WITH_MEDIA, true)
 
         captionText = inputData.getString(KEY_TEXT).orEmpty()
-        captionText = captionText
+
             var watermarkUriStr = inputData.getString(KEY_WATERMARK_URI).orEmpty().trim()
             var blurRectsStr = inputData.getString(KEY_BLUR_RECTS).orEmpty().trim()
             val wmX = inputData.getFloat(KEY_WM_X, -1f)
@@ -305,7 +305,7 @@ class SendWorker(appContext: Context, params: WorkerParameters) : Worker(appCont
 
     private fun sendText(chatId: Long, text: String) {
         val ft = TdApi.FormattedText(text, null)
-        val content = TdApi.InputMessageText(TdApi.FormattedText(captionFmt, null), lpOpts, false)
+        val content = TdApi.InputMessageText(captionFmt, lpOpts, false)
         content.text = ft
         content.linkPreviewOptions = lp
         content.clearDraft = false
@@ -318,6 +318,7 @@ class SendWorker(appContext: Context, params: WorkerParameters) : Worker(appCont
 
         val content: TdApi.InputMessageContent = when (kind) {
             Kind.PHOTO -> TdApi.InputMessagePhoto().apply {
+                caption = captionFmt
                 photo = input
                 caption = ft
                 addedStickerFileIds = intArrayOf()
@@ -325,6 +326,7 @@ class SendWorker(appContext: Context, params: WorkerParameters) : Worker(appCont
                 selfDestructType = null
             }
             Kind.VIDEO -> TdApi.InputMessageVideo().apply {
+                caption = captionFmt
                 video = input
                 caption = ft
                 addedStickerFileIds = intArrayOf()
@@ -332,10 +334,12 @@ class SendWorker(appContext: Context, params: WorkerParameters) : Worker(appCont
                 selfDestructType = null
             }
             Kind.ANIMATION -> TdApi.InputMessageAnimation().apply {
+                caption = captionFmt
                 animation = input
                 caption = ft
             }
             else -> TdApi.InputMessageDocument().apply {
+                caption = captionFmt
                 document = input
                 caption = ft
             }
