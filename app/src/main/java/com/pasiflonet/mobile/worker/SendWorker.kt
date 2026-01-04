@@ -250,7 +250,7 @@ class SendWorker(appContext: Context, params: WorkerParameters) : Worker(appCont
         return ok
     }
 
-    private fun tdSendSync(fn: TdApi.Function, timeoutSec: Int): TdApi.Object? {
+    private fun tdSendSync(fn: TdApi.Function<out TdApi.Object>, timeoutSec: Int): TdApi.Object? {
         val latch = CountDownLatch(1)
         var res: TdApi.Object? = null
         TdLibManager.send(fn) { obj ->
