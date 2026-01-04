@@ -49,6 +49,11 @@ class SendWorker(ctx: Context, params: WorkerParameters) : Worker(ctx, params) {
         val targetUsername = inputData.getString(KEY_TARGET_USERNAME).orEmpty().trim()
         val text = inputData.getString(KEY_TEXT).orEmpty()
 
+        val captionText = text
+        val captionFmt = TdApi.FormattedText(captionText, null)
+        val lpOpts = TdApi.LinkPreviewOptions().apply { isDisabled = true }
+
+        // FIX: removed bad reassignment -> 
         captionText = text
         lpOpts = TdApi.LinkPreviewOptions().apply { isDisabled = true }
 
@@ -120,20 +125,20 @@ class SendWorker(ctx: Context, params: WorkerParameters) : Worker(ctx, params) {
         val content: TdApi.InputMessageContent = when (kind) {
             Kind.PHOTO -> TdApi.InputMessagePhoto().apply {
                 photo = inputFile
-                caption = ft
+                // FIX: removed bad reassignment ->                 caption = ft
             }
             Kind.VIDEO -> TdApi.InputMessageVideo().apply {
                 video = inputFile
-                caption = ft
+                // FIX: removed bad reassignment ->                 caption = ft
                 supportsStreaming = true
             }
             Kind.ANIMATION -> TdApi.InputMessageAnimation().apply {
                 animation = inputFile
-                caption = ft
+                // FIX: removed bad reassignment ->                 caption = ft
             }
             Kind.DOCUMENT -> TdApi.InputMessageDocument().apply {
                 document = inputFile
-                caption = ft
+                // FIX: removed bad reassignment ->                 caption = ft
             }
         }
         return sendContent(chatId, content)
