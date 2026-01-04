@@ -89,6 +89,8 @@ class DetailsActivity : AppCompatActivity() {
             }
         }
 
+    private var blurEnabled: Boolean = false
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_details)
@@ -133,11 +135,13 @@ class DetailsActivity : AppCompatActivity() {
         }
 
         findViewById<View>(R.id.btnBlur).setOnClickListener {
-            blurOverlay.blurMode = true
-            blurOverlay.blurMode = !blurOverlay.blurMode
-            blurOverlay.visibility = View.VISIBLE
-            blurOverlay.invalidate()
-            Toast.makeText(this, if (blurOverlay.blurMode) "טשטוש: גרור מלבן" else "טשטוש: כבוי", Toast.LENGTH_SHORT).show()
+            blurEnabled = !blurEnabled
+            blurOverlay.visibility = if (blurEnabled) View.VISIBLE else View.GONE
+            if (blurEnabled) {
+                Toast.makeText(this, "טשטוש: גרור מלבן על התצוגה", Toast.LENGTH_SHORT).show()
+            } else {
+                Toast.makeText(this, "טשטוש: כבוי", Toast.LENGTH_SHORT).show()
+            }
         }
 
         findViewById<View>(R.id.btnTranslate).setOnClickListener {
