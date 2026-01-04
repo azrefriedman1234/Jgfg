@@ -45,7 +45,7 @@ class SendWorker(appContext: Context, params: WorkerParameters) : Worker(appCont
             val target = inputData.getString(KEY_TARGET_USERNAME).orEmpty().trim().removePrefix("@")
             val text = inputData.getString(KEY_TEXT).orEmpty()
         val captionFt = text                       // String
-        val captionFmt = TdApi.FormattedText(captionFt, null)  // FormattedText
+        val TdApi.FormattedText(captionFt, null) = TdApi.FormattedText(captionFt, null)  // FormattedText
         val lpOpts = TdApi.LinkPreviewOptions()         // TDLib new API
 
             val sendWithMedia = inputData.getBoolean(KEY_SEND_WITH_MEDIA, true)
@@ -297,7 +297,7 @@ class SendWorker(appContext: Context, params: WorkerParameters) : Worker(appCont
 
     private fun sendText(chatId: Long, text: String) {
         val ft = TdApi.FormattedText(text, null)
-        val content = TdApi.InputMessageText(captionFmt, lpOpts, false)
+        val content = TdApi.InputMessageText(TdApi.FormattedText(captionFt, null), lpOpts, false)
         content.text = ft
         content.linkPreviewOptions = lp
         content.clearDraft = false
