@@ -424,6 +424,10 @@ class DetailsActivity : AppCompatActivity() {
 
         val rects = blurOverlay.exportRectsNormalized()
         val rectsStr = rects.joinToString(";") { "${it.left},${it.top},${it.right},${it.bottom}" }
+        val sendWithMedia =
+            if (swSendWithMedia.visibility == View.VISIBLE) swSendWithMedia.isChecked
+            else (hasMediaHint || mediaUri != null || !miniThumbB64.isNullOrBlank() || !mediaMime.isNullOrBlank())
+
 
         val data = Data.Builder()
             .putLong(SendWorker.KEY_SRC_CHAT_ID, srcChatId)
