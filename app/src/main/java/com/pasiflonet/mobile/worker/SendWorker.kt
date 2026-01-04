@@ -105,17 +105,33 @@ class SendWorker(ctx: Context, params: WorkerParameters) : Worker(ctx, params) {
         ) ?: tdMedia.file
 
         val inputFile = TdApi.InputFileLocal(
-        // ✅ NO TEXT FALLBACK: אם ביקשו מדיה – שולחים תמיד קובץ (גם אם זה תמונה/וידאו)
+
+        // ✅ אם ביקשו מדיה: שולחים כ-Photo/Video/Animation (לא Document)
         if (!finalFile.exists() || finalFile.length() <= 0L) {
-            Log.e("SendWorker", "finalFile missing/empty -> abort (no text fallback)")
+            Log.e("SendWorker", "finalFile missing/empty -> abort")
             return Result.failure()
         }
 
         val captionFt = TdApi.FormattedText(text, null)
-        val content = TdApi.InputMessageDocument(inputFile, null, false, captionFt)
 
- var ok = false
-        TdLibManager.send(TdApi.SendMessage(chatId, null, null, null, null, content)) { obj ->
+        val name = finalFile.name.lowercase()
+        val mimeGuess = (java.net.URLConnection.guessContentTypeFromName(name) ?: "").lowercase()
+
+        val isGif = mimeGuess == "image/gif" || name.endsWith(".gif")
+        val isImage = mimeGuess.startsWith("image/") || name.endsWith(".jpg") || name.endsWith(".jpeg") || name.endsWith(".png") || name.endsWith(".webp")
+        val isVideo = mimeGuess.startsWith("video/") || name.endsWith(".mp4") || name.endsWith(".mov") || name.endsWith(".mkv") || name.endsWith(".webm")
+
+        val content: TdApi.InputMessageContent = when {
+            isGif -> TdApi.InputMessageAnimation(inputFile, null, 0, 0, 0, captionFt)
+            isImage -> TdApi.InputMessagePhoto(inputFile, null, intArrayOf(), 0, 0, captionFt, 0)
+            isVideo -> TdApi.InputMessageVideo(inputFile, null, intArrayOf(), 0, 0, 0, true, captionFt, 0)
+            else -> {
+                Log.e("SendWorker", "Unknown edited media type (mime='$mimeGuess', name='$name') -> refusing (no document fallback)")
+                return Result.failure()
+            }
+        }
+
+TdApi.SendMessage(chatId, null, null, null, null, content)) { obj ->
             ok = (obj is TdApi.Message)
             latch.countDown()
         }
