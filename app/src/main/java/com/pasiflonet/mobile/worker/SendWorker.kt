@@ -42,12 +42,12 @@ class SendWorker(ctx: Context, params: WorkerParameters) : Worker(ctx, params) {
         val srcMsgId = inputData.getLong(KEY_SRC_MESSAGE_ID, 0L)
         val targetUsername = inputData.getString(KEY_TARGET_USERNAME).orEmpty().trim()
         val text = inputData.getString(KEY_TEXT).orEmpty()
-        // --- caption compat (String) + TDLib formatted caption ---
-        val captionFt = text // נשאר String לתאימות עם קוד קיים
-        val captionFormatted = TdApi.FormattedText(text, null)
+        // --- caption compat + TDLib formatted caption (single source of truth) ---
+        val captionFt: String = text
+        val captionFormatted = TdApi.FormattedText(captionFt, null)
         val lp = TdApi.LinkPreviewOptions().apply { isDisabled = true }
 
-        val captionFt = captionFt
+        // --- caption compat (String) + TDLib formatted caption ---
 
         val sendWithMedia = inputData.getBoolean(KEY_SEND_WITH_MEDIA, true)
         val blurRectsStr = inputData.getString(KEY_BLUR_RECTS).orEmpty().trim()
@@ -102,7 +102,7 @@ class SendWorker(ctx: Context, params: WorkerParameters) : Worker(ctx, params) {
 
     private fun sendText(chatId: Long, text: String): Boolean {
         val ft = captionFt
-        val content = TdApi.InputMessageText(ft, null, false) // <- חתימה נכונה אצלך
+        val content = TdApi.InputMessageText(captionFormatted, lp, false) // <- חתימה נכונה אצלך
         return sendContent(chatId, content)
     }
 
