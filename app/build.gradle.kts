@@ -84,7 +84,10 @@ tasks.matching { it.name == "preBuild" }.configureEach {
 }
 
 dependencies {
-    // ML Kit (on-device translate)
+    
+    implementation("com.arthenica:smart-exception-java:0.2.1")
+    implementation("com.arthenica:smart-exception-common:0.2.1")
+// ML Kit (on-device translate)
     implementation("com.google.mlkit:language-id:17.0.6")
     implementation("com.google.mlkit:translate:17.0.3")
 
