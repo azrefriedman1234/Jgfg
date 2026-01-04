@@ -83,6 +83,8 @@ class DetailsActivity : AppCompatActivity() {
     private var miniThumbB64: String? = null
     private var hasMediaHint: Boolean = false
 
+    private var thumbFetchStarted: Boolean = false
+
     // for images
     private var workingBitmap: Bitmap? = null
 
@@ -188,6 +190,7 @@ class DetailsActivity : AppCompatActivity() {
             ivPreview.setImageBitmap(thumb)
         } else {
             ivPreview.setImageResource(android.R.drawable.ic_menu_report_image)
+            loadTelegramThumbAsync()
         }
         blurOverlay.setEnabledForImage(false)
         showWatermarkOverlayIfConfigured()
@@ -545,6 +548,84 @@ class DetailsActivity : AppCompatActivity() {
                     .make(ivPreview, "❌ זיהוי שפה נכשל: ${e.message}", com.google.android.material.snackbar.Snackbar.LENGTH_LONG)
                     .show()
             }
+    }
+
+
+
+
+    // Fallback: fetch a real thumbnail from Telegram if minithumb is missing/undecodable
+    private fun loadTelegramThumbAsync() {
+        if (thumbFetchStarted) return
+        thumbFetchStarted = true
+        if (srcChatId == 0L || srcMsgId == 0L) return
+
+        runOnUiThread {
+            com.google.android.material.snackbar.Snackbar
+                .make(ivPreview, "🖼️ מביא תמונה ממוזערת מהטלגרם...", com.google.android.material.snackbar.Snackbar.LENGTH_SHORT)
+                .show()
+        }
+
+        Thread {
+            try {
+                com.pasiflonet.mobile.td.TdLibManager.init(applicationContext)
+                com.pasiflonet.mobile.td.TdLibManager.ensureClient()
+
+                val latch = java.util.concurrent.CountDownLatch(1)
+                var msg: org.drinkless.tdlib.TdApi.Message? = null
+
+                com.pasiflonet.mobile.td.TdLibManager.send(
+                    org.drinkless.tdlib.TdApi.GetMessage(srcChatId, srcMsgId)
+                ) { obj ->
+                    if (obj is org.drinkless.tdlib.TdApi.Message) msg = obj
+                    latch.countDown()
+                }
+
+                latch.await(20, java.util.concurrent.TimeUnit.SECONDS)
+                val content = msg?.content ?: return@Thread
+
+                // choose a thumbnail fileId (fast & small)
+                val fileId: Int? = when (content) {
+                    is org.drinkless.tdlib.TdApi.MessagePhoto -> {
+                        val sizes = content.photo?.sizes ?: emptyArray()
+                        if (sizes.isEmpty()) null
+                        else {
+                            val sorted = sizes.sortedBy { (it.width * it.height) }
+                            val pick = sorted.firstOrNull { it.width >= 200 && it.height >= 200 } ?: sorted[-1]
+                            pick.photo.id
+                        }
+                    }
+                    is org.drinkless.tdlib.TdApi.MessageVideo -> content.video?.thumbnail?.file?.id
+                    is org.drinkless.tdlib.TdApi.MessageAnimation -> content.animation?.thumbnail?.file?.id
+                    is org.drinkless.tdlib.TdApi.MessageDocument -> content.document?.thumbnail?.file?.id
+                    else -> null
+                }
+
+                if (fileId == null) return@Thread
+
+                val latch2 = java.util.concurrent.CountDownLatch(1)
+                var f: org.drinkless.tdlib.TdApi.File? = null
+
+                // synchronous download (returns File)
+                com.pasiflonet.mobile.td.TdLibManager.send(
+                    org.drinkless.tdlib.TdApi.DownloadFile(fileId, 32, 0, 0, true)
+                ) { obj ->
+                    if (obj is org.drinkless.tdlib.TdApi.File) f = obj
+                    latch2.countDown()
+                }
+
+                latch2.await(60, java.util.concurrent.TimeUnit.SECONDS)
+
+                val path = f?.local?.path
+                if (path.isNullOrBlank()) return@Thread
+
+                val bmp = android.graphics.BitmapFactory.decodeFile(path) ?: return@Thread
+                runOnUiThread {
+                    ivPreview.setImageBitmap(bmp)
+                }
+            } catch (_: Throwable) {
+                // ignore
+            }
+        }.start()
     }
 
 }

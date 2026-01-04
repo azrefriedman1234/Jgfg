@@ -52,4 +52,14 @@ object TdLibManager {
         val c = client ?: return
         c.send(f, Client.ResultHandler { obj -> cb(obj) })
     }
+
+
+    @Suppress("UNCHECKED_CAST")
+    fun sendAny(fn: TdApi.Function<*>, cb: (TdApi.Object) -> Unit) {
+        val c = client ?: return
+        c.send(fn as TdApi.Function<TdApi.Object>, Client.ResultHandler { obj ->
+            cb(obj)
+        })
+    }
+
 }
