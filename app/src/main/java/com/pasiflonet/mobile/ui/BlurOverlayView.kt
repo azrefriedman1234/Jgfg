@@ -16,60 +16,57 @@ class BlurOverlayView @JvmOverloads constructor(
     attrs: AttributeSet? = null
 ) : View(ctx, attrs) {
 
+    data class NormRect(val left: Float, val top: Float, val right: Float, val bottom: Float)
+
     var blurMode: Boolean = false
-    var allowRectangles: Boolean = false
+        set(v) { field = v; invalidate() }
+
+    var allowRectangles: Boolean = true
 
     private val rects = mutableListOf<RectF>()
-    private var current: RectF? = null
-    private var downX = 0f
-    private var downY = 0f
+    private var cur: RectF? = null
+    private var startX = 0f
+    private var startY = 0f
 
     private val fill = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         style = Paint.Style.FILL
-        alpha = 60
+        alpha = 70
     }
     private val stroke = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         style = Paint.Style.STROKE
-        strokeWidth = 3f
-        alpha = 180
-    }
-
-    // תאימות לשם הישן שהשתרבב אצלך
-    fun setDrawEnabled(enabled: Boolean) {
-        allowRectangles = enabled
-        invalidate()
+        strokeWidth = 4f
+        alpha = 220
     }
 
     fun clearAll() {
         rects.clear()
-        current = null
+        cur = null
         invalidate()
     }
 
-    fun exportRectsNormalized(): List<RectF> {
-        val w = max(1f, width.toFloat())
-        val h = max(1f, height.toFloat())
-        return rects.map {
-            RectF(
-                (it.left / w).coerceIn(0f, 1f),
-                (it.top / h).coerceIn(0f, 1f),
-                (it.right / w).coerceIn(0f, 1f),
-                (it.bottom / h).coerceIn(0f, 1f)
-            )
+    fun exportRectsNormalized(): List<NormRect> {
+        val w = max(1, width).toFloat()
+        val h = max(1, height).toFloat()
+        return rects.map { r ->
+            val l = (r.left / w).coerceIn(0f, 1f)
+            val t = (r.top / h).coerceIn(0f, 1f)
+            val rr = (r.right / w).coerceIn(0f, 1f)
+            val bb = (r.bottom / h).coerceIn(0f, 1f)
+            NormRect(l, t, rr, bb)
         }
     }
 
-    override fun onDraw(canvas: Canvas) {
-        super.onDraw(canvas)
+    override fun onDraw(c: Canvas) {
+        super.onDraw(c)
         if (!blurMode) return
 
-        rects.forEach {
-            canvas.drawRect(it, fill)
-            canvas.drawRect(it, stroke)
+        rects.forEach { r ->
+            c.drawRect(r, fill)
+            c.drawRect(r, stroke)
         }
-        current?.let {
-            canvas.drawRect(it, fill)
-            canvas.drawRect(it, stroke)
+        cur?.let {
+            c.drawRect(it, fill)
+            c.drawRect(it, stroke)
         }
     }
 
@@ -78,30 +75,25 @@ class BlurOverlayView @JvmOverloads constructor(
 
         when (ev.actionMasked) {
             MotionEvent.ACTION_DOWN -> {
-                downX = ev.x
-                downY = ev.y
-                current = RectF(downX, downY, downX, downY)
+                startX = ev.x
+                startY = ev.y
+                cur = RectF(startX, startY, startX, startY)
                 parent?.requestDisallowInterceptTouchEvent(true)
                 invalidate()
                 return true
             }
             MotionEvent.ACTION_MOVE -> {
-                val r = current ?: return true
-                r.left = min(downX, ev.x)
-                r.top = min(downY, ev.y)
-                r.right = max(downX, ev.x)
-                r.bottom = max(downY, ev.y)
+                val x = ev.x
+                val y = ev.y
+                cur = RectF(min(startX, x), min(startY, y), max(startX, x), max(startY, y))
                 invalidate()
                 return true
             }
             MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
-                val r = current
-                current = null
-                if (r != null) {
-                    val minSize = 24f
-                    if (abs(r.width()) >= minSize && abs(r.height()) >= minSize) {
-                        rects.add(r)
-                    }
+                val r = cur
+                cur = null
+                if (r != null && (abs(r.width()) > 20f) && (abs(r.height()) > 20f)) {
+                    rects.add(r)
                 }
                 invalidate()
                 return true
