@@ -370,9 +370,7 @@ class SendWorker(appContext: Context, params: WorkerParameters) : Worker(appCont
         val outLabel = if (hasWm) "outv" else cur
 
         if (hasWm) {
-            val xExpr = if (wmX >= 0f) "${wmX}*main_w" else "main_w-overlay_w-20"
-            val yExpr = if (wmY >= 0f) "${wmY}*main_h" else "main_h-overlay_h-20"
-
+            val xExpr = "max(0,min(main_w-overlay_w,${wm.x}*(main_w-overlay_w)))"\n            val yExpr = "max(0,min(main_h-overlay_h,${wm.y}*(main_h-overlay_h)))"\n
             // scale watermark relative to video
             val vScaled = "vwm"
             filters += "[1:v][$cur]scale2ref=w=main_w*0.18:h=-1[wm][$vScaled]"
