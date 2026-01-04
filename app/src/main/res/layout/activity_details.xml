@@ -21,6 +21,7 @@
             android:id="@+id/ivPreview"
             android:layout_width="match_parent"
             android:layout_height="match_parent"
+            android:adjustViewBounds="true"
             android:scaleType="fitCenter"
             android:contentDescription="@null"/>
 
@@ -34,7 +35,8 @@
         <com.pasiflonet.mobile.ui.BlurOverlayView
             android:id="@+id/blurOverlay"
             android:layout_width="match_parent"
-            android:layout_height="match_parent"/>
+            android:layout_height="match_parent" />
+
     </FrameLayout>
 
     <LinearLayout
@@ -83,9 +85,10 @@
                         android:hint="טקסט לשליחה / כיתוב"/>
                 </com.google.android.material.textfield.TextInputLayout>
 
-                <Space android:layout_width="1dp" android:layout_height="10dp"/>
+                <Space
+                    android:layout_width="1dp"
+                    android:layout_height="10dp"/>
 
-                <!-- ALWAYS VISIBLE -->
                 <com.google.android.material.switchmaterial.SwitchMaterial
                     android:id="@+id/swSendWithMedia"
                     android:layout_width="match_parent"
@@ -93,7 +96,10 @@
                     android:text="שלח עם מדיה (אם קיימת)"
                     android:checked="true"/>
 
-                <Space android:layout_width="1dp" android:layout_height="12dp"/>
+                <Space
+                    android:layout_width="1dp"
+                    android:layout_height="12dp"/>
+
             </LinearLayout>
         </androidx.core.widget.NestedScrollView>
 
@@ -114,7 +120,9 @@
                     android:layout_weight="1"
                     android:text="סימן מים"/>
 
-                <Space android:layout_width="10dp" android:layout_height="1dp"/>
+                <Space
+                    android:layout_width="10dp"
+                    android:layout_height="1dp"/>
 
                 <com.google.android.material.button.MaterialButton
                     android:id="@+id/btnBlur"
@@ -136,7 +144,9 @@
                     android:layout_weight="1"
                     android:text="תרגום"/>
 
-                <Space android:layout_width="10dp" android:layout_height="1dp"/>
+                <Space
+                    android:layout_width="10dp"
+                    android:layout_height="1dp"/>
 
                 <com.google.android.material.button.MaterialButton
                     android:id="@+id/btnSend"
@@ -144,15 +154,7 @@
                     android:layout_height="wrap_content"
                     android:layout_weight="1"
                     android:text="שלח"/>
-            
-            <Space android:layout_width="1dp" android:layout_height="8dp"/>
-
-            <com.google.android.material.button.MaterialButton
-                android:id="@+id/btnClose"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:text="סגור"/>
-</LinearLayout>
+            </LinearLayout>
 
         </LinearLayout>
     </LinearLayout>

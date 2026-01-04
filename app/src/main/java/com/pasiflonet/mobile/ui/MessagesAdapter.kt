@@ -17,8 +17,6 @@ data class UiMsg(
     val dateSec: Int,
     val from: String,
     val text: String,
-
-    // NEW (defaults so older code won't break)
     val hasMedia: Boolean = false,
     val mediaMime: String? = null,
     val miniThumbB64: String? = null
@@ -37,6 +35,12 @@ class MessagesAdapter(
         notifyDataSetChanged()
     }
 
+    fun setAll(list: List<UiMsg>) {
+        items.clear()
+        items.addAll(list.take(120))
+        notifyDataSetChanged()
+    }
+
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): VH {
         val v = LayoutInflater.from(parent.context).inflate(R.layout.row_message, parent, false)
         return VH(v)
@@ -48,7 +52,10 @@ class MessagesAdapter(
         val m = items[position]
         holder.tvDate.text = fmt.format(Date(m.dateSec.toLong() * 1000L))
         holder.tvFrom.text = m.from
-        holder.tvMsg.text = m.text
+
+        val tag = if (m.hasMedia) "📎 " else ""
+        holder.tvMsg.text = tag + m.text
+
         holder.btnDetails.setOnClickListener { onDetails(m) }
     }
 
