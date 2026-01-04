@@ -48,14 +48,14 @@ class SendWorker(appContext: Context, params: WorkerParameters) : Worker(appCont
             val srcMsgId = inputData.getLong(KEY_SRC_MESSAGE_ID, 0L)
             val targetUsername = inputData.getString(KEY_TARGET_USERNAME).orEmpty().trim()
             val captionText = inputData.getString(KEY_TEXT).orEmpty()
-            val sendWithMedia = inputData.getBoolean(KEY_SEND_WITH_MEDIA, true)
+            
+        val captionFt = TdApi.FormattedText(captionText, null)val sendWithMedia = inputData.getBoolean(KEY_SEND_WITH_MEDIA, true)
 
             val wmUriStr = inputData.getString(KEY_WATERMARK_URI).orEmpty().trim()
             val blurRectsStr = inputData.getString(KEY_BLUR_RECTS).orEmpty().trim()
             val wmX = inputData.getFloat(KEY_WM_X, -1f)
             val wmY = inputData.getFloat(KEY_WM_Y, -1f)
 
-            val captionFmt = TdApi.FormattedText(captionText, null)
 
             val chatId = resolvePublicChatId(targetUsername) ?: run {
                 Log.e(TAG, "resolve chatId failed for $targetUsername")
