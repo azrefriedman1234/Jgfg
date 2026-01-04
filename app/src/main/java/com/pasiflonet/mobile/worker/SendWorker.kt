@@ -19,6 +19,13 @@ import java.util.concurrent.TimeUnit
 
 class SendWorker(appContext: Context, params: WorkerParameters) : Worker(appContext, params) {
 
+    // --- FIX: TDLib caption/link-preview vars (avoid unresolved refs / reassignment errors)
+    private var captionText: String = ""
+    private var captionFmt: TdApi.FormattedText = TdApi.FormattedText("", null)
+    private val lpOpts: TdApi.LinkPreviewOptions = TdApi.LinkPreviewOptions()
+    private val lp: TdApi.LinkPreviewOptions = lpOpts
+    private val topic: TdApi.MessageTopic = TdApi.MessageTopic(0L)
+
     companion object {
         const val KEY_SRC_CHAT_ID = "src_chat_id"
         const val KEY_SRC_MESSAGE_ID = "src_msg_id"
@@ -45,11 +52,12 @@ class SendWorker(appContext: Context, params: WorkerParameters) : Worker(appCont
             val target = inputData.getString(KEY_TARGET_USERNAME).orEmpty().trim().removePrefix("@")
             val text = inputData.getString(KEY_TEXT).orEmpty()
         val captionFt = text                       // String
-        val TdApi.FormattedText(captionFt, null) = TdApi.FormattedText(captionFt, null)  // FormattedText
         val lpOpts = TdApi.LinkPreviewOptions()         // TDLib new API
 
             val sendWithMedia = inputData.getBoolean(KEY_SEND_WITH_MEDIA, true)
 
+        captionText = inputData.getString(KEY_TEXT).orEmpty()
+        captionFmt = TdApi.FormattedText(captionText, null)
             var watermarkUriStr = inputData.getString(KEY_WATERMARK_URI).orEmpty().trim()
             var blurRectsStr = inputData.getString(KEY_BLUR_RECTS).orEmpty().trim()
             val wmX = inputData.getFloat(KEY_WM_X, -1f)
@@ -257,8 +265,8 @@ class SendWorker(appContext: Context, params: WorkerParameters) : Worker(appCont
             val bb = f(r.b.coerceIn(0f, 1f))
             val next = "v${i+1}"
             fc.append("[$cur]split=2[vmain$i][vtmp$i];")
-            fc.append("[vtmp$i]crop=w='($rr-$l)*iw':h='($bb-$t)*ih':x='$l*iw':y='$t*ih',boxblur=10:1[blur$i];")
-            fc.append("[vmain$i][blur$i]overlay=x='$l*iw':y='$t*ih':format=auto[$next];")
+            fc.append("[vtmp$i]crop=w='($rr-$l)*main_w':h='($bb-$t)*main_h':x='$l*main_w':y='$t*main_h',boxblur=10:1[blur$i];")
+            fc.append("[vmain$i][blur$i]overlay=x='$l*main_w':y='$t*main_h':format=auto[$next];")
             cur = next
         }
 
