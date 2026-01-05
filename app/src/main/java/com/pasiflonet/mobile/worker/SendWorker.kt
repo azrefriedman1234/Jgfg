@@ -538,7 +538,7 @@ val hasWm = wmFile != null
     filters += "[0:v]format=rgba[$cur]"
 
     // blur rects
-    rects.forEachIndexed { i, r ->
+    rects.forEachIndexed { i: Int, r: RectN ->
         val base = "base$i"
         val tmp = "tmp$i"
         val bl = "bl$i"
