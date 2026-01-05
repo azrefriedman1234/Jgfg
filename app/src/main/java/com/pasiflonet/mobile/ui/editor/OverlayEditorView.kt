@@ -26,7 +26,15 @@ class OverlayEditorView @JvmOverloads constructor(
 
     
     
-    private val blurPaint = Paint().apply {
+    
+    // PAS_BLUR_PREVIEW
+    private val blurPreviewPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        style = Paint.Style.STROKE
+        strokeWidth = 4f
+        color = 0x66FFFFFF
+    }
+
+private val blurPaint = Paint().apply {
         style = Paint.Style.STROKE
         strokeWidth = 4f
         isAntiAlias = true
@@ -207,6 +215,20 @@ super.onDraw(canvas)
 // (auto) removed broken debug block
 
         pasDrawBlurDebug(canvas)
+
+        // PAS_DRAW_BLUR_RECTS
+        // Draw blur rectangles preview (normalized 0..1 -> view coords)
+        try {
+            val w = width.toFloat().coerceAtLeast(1f)
+            val h = height.toFloat().coerceAtLeast(1f)
+            for (r in blurRects) {
+                val left = (r.l.coerceIn(0f,1f) * w)
+                val top = (r.t.coerceIn(0f,1f) * h)
+                val right = (r.r.coerceIn(0f,1f) * w)
+                val bottom = (r.b.coerceIn(0f,1f) * h)
+                canvas.drawRect(left, top, right, bottom, blurPreviewPaint)
+            }
+        } catch (_: Throwable) {}
 }
 
     override fun onTouchEvent(e: MotionEvent): Boolean {
