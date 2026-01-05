@@ -148,6 +148,31 @@ class OverlayEditorView @JvmOverloads constructor(
             }
         }
         // === END BLUR_PREVIEW_DRAW ===
+
+
+        // DRAW_BLUR_PREVIEW_RECT
+        runCatching {
+            val stroke = android.graphics.Paint().apply {
+                style = android.graphics.Paint.Style.STROKE
+                strokeWidth = 3f
+                color = android.graphics.Color.argb(220, 255, 0, 0)
+            }
+            val fill = android.graphics.Paint().apply {
+                style = android.graphics.Paint.Style.FILL
+                color = android.graphics.Color.argb(50, 255, 0, 0)
+            }
+            val list = try { blurRects } catch (_: Throwable) { emptyList<com.pasiflonet.mobile.worker.SendWorker.NRect>() }
+            for (r in list) {
+                val l = dst.left + r.l * dst.width()
+                val t = dst.top + r.t * dst.height()
+                val rr = dst.left + r.r * dst.width()
+                val bb = dst.top + r.b * dst.height()
+                val rc = android.graphics.RectF(l, t, rr, bb)
+                canvas.drawRect(rc, fill)
+                canvas.drawRect(rc, stroke)
+            }
+        }
+
 }
 
     override fun onTouchEvent(event: MotionEvent): Boolean {
