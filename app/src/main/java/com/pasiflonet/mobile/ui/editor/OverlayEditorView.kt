@@ -180,127 +180,16 @@ class OverlayEditorView @JvmOverloads constructor(
 
 
 
-        // AUTO_BLUR_PREVIEW_REFLECTION
-        runCatching {
-            val stroke = android.graphics.Paint().apply {
-                style = android.graphics.Paint.Style.STROKE
-                strokeWidth = 4f
-                color = android.graphics.Color.argb(230, 255, 0, 0)
-            }
-            val fill = android.graphics.Paint().apply {
-                style = android.graphics.Paint.Style.FILL
-                color = android.graphics.Color.argb(60, 255, 0, 0)
-            }
-
-            val fieldNames = listOf("blurRects", "mBlurRects", "rects", "blurRectList")
-            for (fn in fieldNames) {
-                val f = runCatching {
-                    this::class.java.getDeclaredField(fn).apply { isAccessible = true }
-                }.getOrNull() ?: continue
-
-                val v = runCatching { f.get(this) }.getOrNull()
-                val list = v as? java.util.List<*> ?: continue
-
-                for (it in list) {
-                    if (it == null) continue
-
-                    when (it) {
-                        is android.graphics.RectF -> {
-                            canvas.drawRect(it, fill)
-                            canvas.drawRect(it, stroke)
-                        }
-                        is android.graphics.Rect -> {
-                            val rf = android.graphics.RectF(it)
-                            canvas.drawRect(rf, fill)
-                            canvas.drawRect(rf, stroke)
-                        }
-                        else -> {
-                            // NRect-like normalized l/t/r/b in 0..1
-                            val c = it.javaClass
-                            fun gf(n: String): Float? = runCatching {
-                                val ff = c.getDeclaredField(n).apply { isAccessible = true }
-                                (ff.get(it) as? Number)?.toFloat()
-                            }.getOrNull()
-
-                            val l = gf("l"); val t = gf("t"); val r = gf("r"); val b = gf("b")
-                            if (l != null && t != null && r != null && b != null) {
-                                val w = width.toFloat().coerceAtLeast(1f)
-                                val h = height.toFloat().coerceAtLeast(1f)
-                                val rc = android.graphics.RectF(l * w, t * h, r * w, b * h)
-                                canvas.drawRect(rc, fill)
-                                canvas.drawRect(rc, stroke)
-                            }
-                        }
-                    }
-                }
-            }
-        }
+        
+// (auto) removed broken debug block
 
 
 
 
-        // PAS_DRAW_BLUR_RECT_PREVIEW_V2
-        runCatching {
-            val stroke = android.graphics.Paint().apply {
-                style = android.graphics.Paint.Style.STROKE
-                strokeWidth = 5f
-                color = android.graphics.Color.argb(235, 255, 0, 0)
-                isAntiAlias = true
-            }
-            val fill = android.graphics.Paint().apply {
-                style = android.graphics.Paint.Style.FILL
-                color = android.graphics.Color.argb(70, 255, 0, 0)
-                isAntiAlias = true
-            }
 
-            fun getFloat(o: Any, names: List<String>): Float? {
-                for (n in names) {
-                    runCatching {
-                        val f = o.javaClass.getDeclaredField(n)
-                        f.isAccessible = true
-                        val v = f.get(o)
-                        return when (v) {
-                            is Float -> v
-                            is Double -> v.toFloat()
-                            is Int -> v.toFloat()
-                            is Long -> v.toFloat()
-                            else -> null
-                        }
-                    }
-                }
-                return null
-            }
+        
+// (auto) removed broken debug block
 
-            val candidates = mutableListOf<Any>()
-            for (f in this.javaClass.declaredFields) {
-                if (!f.name.contains("blur", ignoreCase = true)) continue
-                f.isAccessible = true
-                val v = runCatching { f.get(this) }.getOrNull()
-                if (v is List<*>) candidates.addAll(v.filterNotNull())
-            }
-
-            val vw = (width.takeIf { it > 0 } ?: 1).toFloat()
-            val vh = (height.takeIf { it > 0 } ?: 1).toFloat()
-
-            for (o in candidates) {
-                val l = getFloat(o, listOf("l","left","x1")) ?: continue
-                val t = getFloat(o, listOf("t","top","y1")) ?: continue
-                val r = getFloat(o, listOf("r","right","x2")) ?: continue
-                val b = getFloat(o, listOf("b","bottom","y2")) ?: continue
-
-                val normalized = (l >= 0f && t >= 0f && r >= 0f && b >= 0f &&
-                                  l <= 1.5f && t <= 1.5f && r <= 1.5f && b <= 1.5f)
-
-                val nl = if (normalized) l * vw else l
-                val nt = if (normalized) t * vh else t
-                val nr = if (normalized) r * vw else r
-                val nb = if (normalized) b * vh else b
-
-                val rc = android.graphics.RectF(nl, nt, nr, nb)
-                canvas.drawRect(rc, fill)
-                canvas.drawRect(rc, stroke)
-            }
-        }
         pasDrawBlurDebug(canvas)
 }
 
