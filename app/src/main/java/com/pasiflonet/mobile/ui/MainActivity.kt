@@ -18,7 +18,7 @@ class MainActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        setContentView(getLayoutId())
+        setContentView(R.layout.activity_main)
 
         adapter = MessagesAdapter { msg ->
             // פותח DetailsActivity (מעביר מזהים בסיסיים – לא שוברים קומפילציה גם אם לא משתמשים שם)
@@ -39,8 +39,8 @@ class MainActivity : AppCompatActivity() {
             startActivity(i)
         }
 
-        // RecyclerView (מאתרים ID בצורה דינמית כדי לא ליפול על R.id לא קיים)
-        val rv = findRecyclerView()
+        // RecyclerView
+        val rv = findByAnyId<RecyclerView>("recycler","recyclerView","rvMessages","messagesRecycler","rv","list")
         if (rv != null) {
             rv.layoutManager = LinearLayoutManager(this)
             rv.adapter = adapter
@@ -48,7 +48,7 @@ class MainActivity : AppCompatActivity() {
             Toast.makeText(this, "RecyclerView לא נמצא בלייאאוט", Toast.LENGTH_SHORT).show()
         }
 
-        // כפתור ניקוי זמניים (מנקה רק cacheDir/pasiflonet_tmp)
+        hookSettingsAndExit()
         hookClearTempButton()
 
         // רענון ראשוני
@@ -56,13 +56,8 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun refreshList() {
-        // אם ב־MessagesAdapter יש submit(list) – נשתמש בו, אחרת ננסה setItems/setMessages/submitList, ואם כלום – notify
-        try {
-            val m = adapter.javaClass.methods.firstOrNull { it.name == "submit" && it.parameterTypes.size == 1 }
-            if (m != null) {
-                m.invoke(adapter, liveMsgs)
-                return
-            }
+        adapter.submit(liveMsgs)
+    }
         } catch (_: Throwable) {}
 
         try {

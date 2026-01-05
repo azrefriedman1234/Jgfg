@@ -1,48 +1,26 @@
 package com.pasiflonet.mobile.ui
-import org.drinkless.tdlib.TdApi
 
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
-import android.widget.Button
 import android.widget.TextView
 import androidx.recyclerview.widget.RecyclerView
-import com.pasiflonet.mobile.R
-import java.text.SimpleDateFormat
-import java.util.Date
-import java.util.Locale
-
-data class UiMsg(
-    val chatId: Long,
-    val msgId: Long,
-    val dateSec: Int,
-    val from: String,
-    val text: String,
-    val hasMedia: Boolean = false,
-    val mediaMime: String? = null,
-    val miniThumbB64: String? = null
-)
+import org.drinkless.tdlib.TdApi
 
 class MessagesAdapter(
-    private val onDetails: (UiMsg) -> Unit
+    private val onClick: (TdApi.Message) -> Unit
 ) : RecyclerView.Adapter<MessagesAdapter.VH>() {
-    private val items = ArrayList<UiMsg>()
-    private val fmt = SimpleDateFormat("HH:mm:ss", Locale.getDefault())
 
-    fun prepend(m: UiMsg) {
-        items.add(0, m)
-        if (items.size > 120) items.removeAt(items.size - 1)
-        notifyDataSetChanged()
-    }
+    private val items = ArrayList<TdApi.Message>(200)
 
-    fun setAll(list: List<UiMsg>) {
+    fun submit(list: List<TdApi.Message>) {
         items.clear()
-        items.addAll(list.take(120))
+        items.addAll(list)
         notifyDataSetChanged()
     }
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): VH {
-        val v = LayoutInflater.from(parent.context).inflate(R.layout.row_message, parent, false)
+        val v = LayoutInflater.from(parent.context).inflate(android.R.layout.simple_list_item_2, parent, false)
         return VH(v)
     }
 
@@ -50,19 +28,29 @@ class MessagesAdapter(
 
     override fun onBindViewHolder(holder: VH, position: Int) {
         val m = items[position]
-        holder.tvDate.text = fmt.format(Date(m.dateSec.toLong() * 1000L))
-        holder.tvFrom.text = m.from
-
-        val tag = if (m.hasMedia) "📎 " else ""
-        holder.tvMsg.text = tag + m.text
-
-        holder.btnDetails.setOnClickListener { onDetails(m) }
+        holder.title.text = "chat=${m.chatId}  id=${m.id}"
+        holder.sub.text = extractText(m)
+        holder.itemView.setOnClickListener { onClick(m) }
     }
 
     class VH(v: View) : RecyclerView.ViewHolder(v) {
-        val tvDate: TextView = v.findViewById(R.id.tvDate)
-        val tvFrom: TextView = v.findViewById(R.id.tvFrom)
-        val tvMsg: TextView = v.findViewById(R.id.tvMsg)
-        val btnDetails: Button = v.findViewById(R.id.btnDetails)
+        val title: TextView = v.findViewById(android.R.id.text1)
+        val sub: TextView = v.findViewById(android.R.id.text2)
+    }
+
+    private fun extractText(m: TdApi.Message): String {
+        return try {
+            when (val c = m.content) {
+                is TdApi.MessageText -> c.text.text
+                is TdApi.MessagePhoto -> "[PHOTO]"
+                is TdApi.MessageVideo -> "[VIDEO]"
+                is TdApi.MessageDocument -> "[DOC]"
+                is TdApi.MessageAnimation -> "[GIF]"
+                is TdApi.MessageSticker -> "[STICKER]"
+                else -> "[" + (c?.javaClass?.simpleName ?: "CONTENT") + "]"
+            }
+        } catch (_: Throwable) {
+            "[MSG]"
+        }
     }
 }
