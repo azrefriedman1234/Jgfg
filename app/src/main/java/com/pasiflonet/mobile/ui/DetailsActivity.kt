@@ -143,7 +143,7 @@ setContentView(R.layout.activity_details)
         swSendWithMedia.visibility = View.VISIBLE
         swSendWithMedia.isEnabled = false
         swSendWithMedia.isChecked = false
-        swSendWithMedia.text = "בודק מדיה."
+        swSendWithMedia.text = "בודק מדיה"
 
         // תצוגת בסיס מהירה (miniThumb), ואז Thumb חד מהטלגרם
         decodeMiniThumb(miniThumbB64)?.let { ivPreview.setImageBitmap(it) }
@@ -348,7 +348,7 @@ setContentView(R.layout.activity_details)
             .putFloat(SendWorker.KEY_WM_Y, wmY)
             .build()
 
-        val req = OneTimeWorkRequestBuilder<SendWorker>().addTag("SEND_WORK").addTag("SEND_WORK").addTag("SEND_WORK").addTag("SEND_WORK").addTag(com.pasiflonet.mobile.worker.SendWorker."SEND").addTag("SEND_WORK").addTag("SEND_WORK").addTag("SEND_WORK").addTag("SEND_WORK").addTag("SEND_WORK")
+        val req = OneTimeWorkRequestBuilder<SendWorker>().addTag("SEND_WORK").addTag("SEND_WORK").addTag("SEND_WORK").addTag("SEND_WORK").addTag(com.pasiflonet.mobile.worker.SendWorker"SEND").addTag("SEND_WORK").addTag("SEND_WORK").addTag("SEND_WORK").addTag("SEND_WORK").addTag("SEND_WORK")
             .setInputData(data)
             .build()
 
