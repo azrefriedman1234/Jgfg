@@ -46,7 +46,7 @@ class SendWorker(appContext: Context, params: WorkerParameters) : Worker(appCont
 
     override fun doWork(): Result {
         // PAS_SENDWORKER_LOG_V1
-        val logDir = java.io.File(applicationContext.getExternalFilesDir(null), "pasiflonet_logs").apply { mkdirs() }
+        val logDir = java.io.File((applicationContext.getExternalFilesDir(null) ?: applicationContext.filesDir), "pasiflonet_logs").apply { mkdirs() }
         val logFile = java.io.File(logDir, "send_${System.currentTimeMillis()}.log")
         val tail = java.util.ArrayDeque<String>(240)
 
