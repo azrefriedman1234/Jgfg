@@ -176,6 +176,10 @@ class OverlayEditorView @JvmOverloads constructor(
         canvas.drawRect(rc, hudStroke)
     
 
+
+
+
+
         // AUTO_BLUR_PREVIEW_REFLECTION
         runCatching {
             val stroke = android.graphics.Paint().apply {
@@ -188,52 +192,47 @@ class OverlayEditorView @JvmOverloads constructor(
                 color = android.graphics.Color.argb(60, 255, 0, 0)
             }
 
-            fun drawAnyRect(obj: Any) {
-                when (obj) {
-                    is android.graphics.RectF -> { canvas.drawRect(obj, fill); canvas.drawRect(obj, stroke) }
-                    is android.graphics.Rect -> {
-                        val rf = android.graphics.RectF(obj)
-                        canvas.drawRect(rf, fill); canvas.drawRect(rf, stroke)
-                    }
-                    else -> {
-                        // try NRect-like (l,t,r,b floats 0..1)
-                        val c = obj.javaClass
-                        val fl = c.declaredFields.associateBy { it.name }
-                        val lF = fl["l"]; val tF = fl["t"]; val rF = fl["r"]; val bF = fl["b"]
-                        if (lF != null and tF != null and rF != null and bF != null) {
-                            for f in (lF, tF, rF, bF): f.isAccessible = True
-                        }
-                    }
-                }
-            }
+            val fieldNames = listOf("blurRects", "mBlurRects", "rects", "blurRectList")
+            for (fn in fieldNames) {
+                val f = runCatching {
+                    this::class.java.getDeclaredField(fn).apply { isAccessible = true }
+                }.getOrNull() ?: continue
 
-            // Try fields: blurRects / rects / mBlurRects
-            val candidates = listOf("blurRects","mBlurRects","rects","blurRectList")
-            for (name in candidates) {
-                try {
-                    val f = this.javaClass.getDeclaredField(name)
-                    f.isAccessible = true
-                    val v = f.get(this)
-                    val list = (v as? java.util.List<*>) ?: continue
-                    for (it in list) {
-                        if (it == null) continue
-                        if (it is android.graphics.RectF || it is android.graphics.Rect) {
-                            drawAnyRect(it)
-                        } else {
-                            // NRect-like normalized l/t/r/b
+                val v = runCatching { f.get(this) }.getOrNull()
+                val list = v as? java.util.List<*> ?: continue
+
+                for (it in list) {
+                    if (it == null) continue
+
+                    when (it) {
+                        is android.graphics.RectF -> {
+                            canvas.drawRect(it, fill)
+                            canvas.drawRect(it, stroke)
+                        }
+                        is android.graphics.Rect -> {
+                            val rf = android.graphics.RectF(it)
+                            canvas.drawRect(rf, fill)
+                            canvas.drawRect(rf, stroke)
+                        }
+                        else -> {
+                            // NRect-like normalized l/t/r/b in 0..1
                             val c = it.javaClass
-                            fun gf(n: String): Float? = try {
-                                val ff = c.getDeclaredField(n); ff.isAccessible = true
+                            fun gf(n: String): Float? = runCatching {
+                                val ff = c.getDeclaredField(n).apply { isAccessible = true }
                                 (ff.get(it) as? Number)?.toFloat()
-                            } catch (_: Throwable) { null }
+                            }.getOrNull()
+
                             val l = gf("l"); val t = gf("t"); val r = gf("r"); val b = gf("b")
                             if (l != null && t != null && r != null && b != null) {
-                                val rc = android.graphics.RectF(l*width, t*height, r*width, b*height)
-                                canvas.drawRect(rc, fill); canvas.drawRect(rc, stroke)
+                                val w = width.toFloat().coerceAtLeast(1f)
+                                val h = height.toFloat().coerceAtLeast(1f)
+                                val rc = android.graphics.RectF(l * w, t * h, r * w, b * h)
+                                canvas.drawRect(rc, fill)
+                                canvas.drawRect(rc, stroke)
                             }
                         }
                     }
-                } catch (_: Throwable) { }
+                }
             }
         }
 
