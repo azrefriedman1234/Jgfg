@@ -249,6 +249,18 @@ class OverlayEditorView @JvmOverloads constructor(
             MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
                 if (mode == Mode.DRAW_BLUR) {
                     val r = curRect
+            // PAS_ADD_RECT_ON_UP_V1
+            runCatching {
+                val rc = curRect
+                if (rc != null) {
+                    val n = rectPxToNorm(rc).norm()
+                    if (n.r > n.l && n.b > n.t) {
+                        blurRects.add(n)
+                        invalidate()
+                    }
+                }
+            }
+
                     curRect = null
                     mode = Mode.NONE
 

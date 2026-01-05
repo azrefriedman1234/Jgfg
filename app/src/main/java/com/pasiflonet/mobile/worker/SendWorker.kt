@@ -398,7 +398,9 @@ class SendWorker(appContext: Context, params: WorkerParameters) : Worker(appCont
     wmX: Float,
     wmY: Float
 ): Boolean {
-    val hasWm = wmFile != null
+    
+          val wmScale = if (kind == Kind.PHOTO) 0.12f else 0.10f
+val hasWm = wmFile != null
     val hasBlur = rects.isNotEmpty()
     if (!hasWm && !hasBlur) {
         runCatching { input.copyTo(output, overwrite = true) }
@@ -442,7 +444,7 @@ class SendWorker(appContext: Context, params: WorkerParameters) : Worker(appCont
         val xExpr = "($nx*(main_w-overlay_w))"
         val yExpr = "($ny*(main_h-overlay_h))"
 
-        filters += "[1:v][$cur]scale2ref=w=main_w*0.18:h=-1[wm][vref]"
+        filters += "[1:v][$cur]scale2ref=w=main_w*${wmScale}:h=-1[wm][vref]"
         filters += "[vref][wm]overlay=$xExpr:$yExpr[$outLabel]"
     }
 
