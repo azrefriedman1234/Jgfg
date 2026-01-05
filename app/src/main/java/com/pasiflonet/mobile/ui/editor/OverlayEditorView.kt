@@ -301,8 +301,7 @@ class OverlayEditorView @JvmOverloads constructor(
                 canvas.drawRect(rc, stroke)
             }
         }
-
-
+        pasDrawBlurDebug(canvas)
 }
 
     override fun onTouchEvent(e: MotionEvent): Boolean {
@@ -409,4 +408,91 @@ class OverlayEditorView @JvmOverloads constructor(
         val b = ((max(px.top, px.bottom) - dst.top) / max(1f, dst.height())).coerceIn(0f, 1f)
         return NRect(l, t, r, b)
     }
+
+    // PAS_BLUR_DEBUG_BEGIN
+    private val pasBlurStroke by lazy {
+        android.graphics.Paint().apply {
+            style = android.graphics.Paint.Style.STROKE
+            strokeWidth = 4f
+            color = android.graphics.Color.argb(230, 255, 0, 0)
+            isAntiAlias = true
+        }
+    }
+    private val pasBlurFill by lazy {
+        android.graphics.Paint().apply {
+            style = android.graphics.Paint.Style.FILL
+            color = android.graphics.Color.argb(60, 255, 0, 0)
+        }
+    }
+
+    private fun pasExtractRectF(obj: Any?): android.graphics.RectF? {
+        if (obj == null) return null
+        when (obj) {
+            is android.graphics.RectF -> return obj
+            is android.graphics.Rect -> return android.graphics.RectF(obj)
+        }
+        // Try common field names: l/t/r/b or left/top/right/bottom
+        runCatching {
+            val c = obj.javaClass
+            fun f(name: String) = c.declaredFields.firstOrNull { it.name.equals(name, true) }?.apply { isAccessible = True }
+        }.getOrNull()
+
+        // Reflection-based numeric fields
+        runCatching {
+            val c = obj.javaClass
+            def getf(n):
+                for ff in c.declaredFields:
+                    if ff.name.lower() == n.lower():
+                        ff.isAccessible = True
+                        v = ff.get(obj)
+                        if isinstance(v, (int, float)):
+                            return float(v)
+                return None
+        }.getOrNull()
+
+        return null
+    }
+
+    private fun pasGetAnyListByNameHint(hint: String): List<Any?> {
+        // Search fields then zero-arg getters that return List
+        val c = this.javaClass
+        runCatching {
+            c.declaredFields.forEach { f ->
+                f.isAccessible = true
+                if (f.name.contains(hint, ignoreCase = true)) {
+                    val v = f.get(this)
+                    if (v is List<*>) return v.filterNotNull()
+                }
+            }
+        }
+        runCatching {
+            c.declaredMethods.forEach { m ->
+                if (m.parameterTypes.isEmpty() && m.name.contains(hint, ignoreCase = true)) {
+                    m.isAccessible = true
+                    val v = m.invoke(this)
+                    if (v is List<*>) return v.filterNotNull()
+                }
+            }
+        }
+        return emptyList()
+    }
+
+    private fun pasDrawBlurDebug(canvas: android.graphics.Canvas) {
+        // We try to find "blurRects" list by name hint, and draw RectF items if present.
+        val items = pasGetAnyListByNameHint("blur")
+        if (items.isEmpty()) return
+
+        for (it in items) {
+            val r = when (it) {
+                is android.graphics.RectF -> it
+                is android.graphics.Rect -> android.graphics.RectF(it)
+                else -> null
+            } ?: continue
+
+            canvas.drawRect(r, pasBlurFill)
+            canvas.drawRect(r, pasBlurStroke)
+        }
+    }
+    // PAS_BLUR_DEBUG_END
+
 }
