@@ -444,21 +444,6 @@ setContentView(R.layout.activity_details)
 // PAS_TRANSLATE_ASYNC_BEGIN
     // Async translate: never block UI thread
     private fun pasTranslateAsync(src: String) {
-        Thread {
-            val translated = try {
-                com.pasiflonet.mobile.util.translateToHebrewCompat(src, 15000)
-            } catch (t: Throwable) {
-                android.util.Log.w("DetailsActivity", "translate failed: " + (t.message ?: t.javaClass.simpleName))
-                ""
-            }
-
-            runOnUiThread {
-                val i = android.content.Intent(this, com.pasiflonet.mobile.ui.TranslateActivity::class.java)
-                    .putExtra(com.pasiflonet.mobile.ui.TranslateActivity.EXTRA_SOURCE_TEXT, src)
-                    .putExtra(com.pasiflonet.mobile.ui.TranslateActivity.EXTRA_TRANSLATED_TEXT, translated)
-                translateLauncher.launch(i)
-            }
-        }.start()
     }
 // PAS_TRANSLATE_ASYNC_END
 
