@@ -1,4 +1,8 @@
 package com.pasiflonet.mobile.ui
+import com.pasiflonet.mobile.worker.SendWorker
+import android.net.Uri
+import android.os.Looper
+import android.os.Handler
 
 import android.Manifest
 import android.content.Intent
@@ -33,6 +37,24 @@ class MainActivity : AppCompatActivity() {
 
     private val updateListener: (TdApi.Object) -> Unit = { obj ->
         if (obj is TdApi.UpdateNewMessage) {
+            // LIVE_UPDATE_UI_PATCH
+            // Ensure UI list updates on main thread
+            try {
+                val msg = obj.message
+                ui {
+                    try {
+                        // If you want filter by current chat, add:
+                        // if (currentChatId != 0L && msg.chatId != currentChatId) return@ui
+
+                        // Adapter should expose addOrUpdate(message)
+                        adapter.addOrUpdate(msg)
+                    } catch (_: Throwable) {
+                        // fallback: at least refresh whole list if you have one
+                        try { adapter.notifyDataSetChanged() } catch (_: Throwable) {}
+                    }
+                }
+            } catch (_: Throwable) { }
+
             val msg = obj.message
             val from = when (val s = msg.senderId) {
                 is TdApi.MessageSenderUser -> "user:${s.userId}"
@@ -166,4 +188,35 @@ class MainActivity : AppCompatActivity() {
         // minithumb יגיע דרך intent אם קיים; פה נשמור null כדי לא לשבור
         return Quad(text, hasMedia, mime, null)
     }
+    // LIVE_UPDATES_HELPERS_BEGIN
+    private val uiHandler = Handler(Looper.getMainLooper())
+    private var livePollRunnable: Runnable? = null
+
+    private fun ui(block: () -> Unit) {
+        if (Looper.myLooper() == Looper.getMainLooper()) block() else uiHandler.post(block)
+    }
+
+    // Fallback: keep UI in sync even if some updates are missed.
+    private fun startLiveFallbackPolling() {
+        if (livePollRunnable != null) return
+        livePollRunnable = object : Runnable {
+            override fun run() {
+                try {
+                    // If you have a function that refreshes last messages, call it here.
+                    // Example (adjust to your TDLib wrapper):
+                    // refreshLastMessages()
+                } catch (_: Throwable) { }
+                uiHandler.postDelayed(this, 2500)
+            }
+        }
+        uiHandler.post(livePollRunnable!!)
+    }
+
+    private fun stopLiveFallbackPolling() {
+        livePollRunnable?.let { uiHandler.removeCallbacks(it) }
+        livePollRunnable = null
+    }
+    // LIVE_UPDATES_HELPERS_END
+
+
 }

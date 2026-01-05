@@ -1,4 +1,5 @@
 package com.pasiflonet.mobile.ui
+import org.drinkless.tdlib.TdApi
 
 import android.view.LayoutInflater
 import android.view.View
@@ -25,6 +26,29 @@ data class UiMsg(
 class MessagesAdapter(
     private val onDetails: (UiMsg) -> Unit
 ) : RecyclerView.Adapter<MessagesAdapter.VH>() {
+    // Backing list for fast live updates
+    private val items: MutableList<TdApi.Message> = mutableListOf()
+
+    fun submit(list: List<TdApi.Message>) {
+        items.clear()
+        items.addAll(list)
+        notifyDataSetChanged()
+    }
+
+    fun addOrUpdate(m: TdApi.Message) {
+        // update if exists, else add to top
+        val idx = items.indexOfFirst { it.id == m.id && it.chatId == m.chatId }
+        if (idx >= 0) {
+            items[idx] = m
+            notifyItemChanged(idx)
+        } else {
+            items.add(0, m)
+            notifyItemInserted(0)
+        }
+    }
+
+    fun getItemAt(pos: Int): TdApi.Message = items[pos]
+
 
     private val items = ArrayList<UiMsg>()
     private val fmt = SimpleDateFormat("HH:mm:ss", Locale.getDefault())
