@@ -1,4 +1,5 @@
 package com.pasiflonet.mobile.ui
+import com.pasiflonet.mobile.util.TempCleaner
 import com.pasiflonet.mobile.worker.SendWorker
 import android.net.Uri
 import android.os.Looper
@@ -83,6 +84,15 @@ class MainActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
 
+        // CLEAR_TEMP_BUTTON_PATCH
+        try {
+            val btn = findViewById<android.view.View>(R.id.btn_clear_temp)
+            btn.setOnClickListener {
+                val (files, bytes) = TempCleaner.clearTemp(this)
+                val mb = (bytes.toDouble() / (1024.0*1024.0))
+                android.widget.Toast.makeText(this, "נוקו $files קבצים זמניים (${String.format("%.1f", mb)}MB)", android.widget.Toast.LENGTH_LONG).show()
+            }
+        } catch (_: Throwable) { }
         findViewById<android.view.View>(R.id.btnSettings)
             .setOnClickListener { startActivity(Intent(this, SettingsActivity::class.java)) }
 
