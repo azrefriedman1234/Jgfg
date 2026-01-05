@@ -95,7 +95,9 @@ class DetailsActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
 
 
-        // Live logs from SendWorker by tag (works even if req variable name differs)
+        
+        initSendLogsUi()
+// Live logs from SendWorker by tag (works even if req variable name differs)
         androidx.work.WorkManager.getInstance(this)
             .getWorkInfosByTagLiveData("SEND_WORK")
             .observe(this) { list ->
@@ -349,7 +351,7 @@ setContentView(R.layout.activity_details)
             .putFloat(SendWorker.KEY_WM_Y, wmY)
             .build()
 
-        val req = OneTimeWorkRequestBuilder<SendWorker>().addTag("SEND_WORK").addTag("SEND_WORK").addTag("SEND_WORK").addTag("SEND_WORK").addTag("SEND_WORK")
+        val req = OneTimeWorkRequestBuilder<SendWorker>().addTag(com.pasiflonet.mobile.worker.SendWorker.TAG_SEND).addTag("SEND_WORK").addTag("SEND_WORK").addTag("SEND_WORK").addTag("SEND_WORK").addTag("SEND_WORK")
             .setInputData(data)
             .build()
 
@@ -406,5 +408,63 @@ setContentView(R.layout.activity_details)
         }
         logTextView?.text = text
     }
+
+// === SEND_LOG_UI_BEGIN ===
+    private var logDialog: androidx.appcompat.app.AlertDialog? = null
+    private var logTextView: android.widget.TextView? = null
+
+    private fun showOrUpdateLogDialog(text: String) {
+        if (logDialog == null) {
+            val tv = android.widget.TextView(this).apply {
+                setPadding(32, 24, 32, 24)
+                setTextIsSelectable(true)
+                typeface = android.graphics.Typeface.MONOSPACE
+            }
+            val scroll = android.widget.ScrollView(this).apply { addView(tv) }
+            logTextView = tv
+            logDialog = androidx.appcompat.app.AlertDialog.Builder(this)
+                .setTitle("FFmpeg / Send logs")
+                .setView(scroll)
+                .setPositiveButton("Close") { dlg, _ -> dlg.dismiss() }
+                .create()
+            logDialog!!.show()
+        }
+        logTextView?.text = text
+    }
+
+    private fun initSendLogsUi() {
+        // Observer: progress/outputData from SendWorker by TAG
+        androidx.work.WorkManager.getInstance(this)
+            .getWorkInfosByTagLiveData(com.pasiflonet.mobile.worker.SendWorker.TAG_SEND)
+            .observe(this) { list ->
+                if (list.isNullOrEmpty()) return@observe
+                val info = list.maxByOrNull { it.runAttemptCount } ?: list.last()
+
+                val tail =
+                    info.progress.getString(com.pasiflonet.mobile.worker.SendWorker.KEY_LOG_TAIL)
+                        ?: info.outputData.getString(com.pasiflonet.mobile.worker.SendWorker.KEY_LOG_TAIL)
+                        ?: ""
+
+                if (tail.isNotBlank()) showOrUpdateLogDialog(tail)
+
+                if (info.state == androidx.work.WorkInfo.State.FAILED) {
+                    val err = info.outputData.getString(com.pasiflonet.mobile.worker.SendWorker.KEY_ERROR_MSG) ?: "Send failed"
+                    val logFile = info.outputData.getString(com.pasiflonet.mobile.worker.SendWorker.KEY_LOG_FILE) ?: ""
+                    val msg = "ERROR: " + err + "\n\n" + tail + "\n\nLOG FILE: " + logFile
+                    showOrUpdateLogDialog(msg)
+                    android.widget.Toast.makeText(this, err, android.widget.Toast.LENGTH_LONG).show()
+                }
+            }
+
+        // Crash log file on device (best effort)
+        val crashDir = java.io.File(getExternalFilesDir(null), "pasiflonet_logs").apply { mkdirs() }
+        Thread.setDefaultUncaughtExceptionHandler { _, e ->
+            runCatching {
+                val f = java.io.File(crashDir, "ui_crash_${System.currentTimeMillis()}.log")
+                f.writeText(android.util.Log.getStackTraceString(e))
+            }
+        }
+    }
+// === SEND_LOG_UI_END ===
 
 }

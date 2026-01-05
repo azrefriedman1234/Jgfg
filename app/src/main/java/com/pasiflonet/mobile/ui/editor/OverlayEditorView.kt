@@ -126,7 +126,29 @@ class OverlayEditorView @JvmOverloads constructor(
             paint.color = Color.WHITE
             canvas.drawCircle(x, y, 8f, paint)
         }
-    }
+    
+        // === BLUR_PREVIEW_DRAW ===
+        runCatching {
+            val fill = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                style = Paint.Style.FILL
+                color = 0x55FFFFFF.toInt()
+            }
+            val stroke = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                style = Paint.Style.STROKE
+                strokeWidth = 4f
+                color = 0xFFFFFFFF.toInt()
+            }
+
+            // Support RectF lists directly
+            for (r in blurRects) {
+                if (r is android.graphics.RectF) {
+                    canvas.drawRect(r, fill)
+                    canvas.drawRect(r, stroke)
+                }
+            }
+        }
+        // === END BLUR_PREVIEW_DRAW ===
+}
 
     override fun onTouchEvent(event: MotionEvent): Boolean {
         val bm = baseBitmap ?: return false
