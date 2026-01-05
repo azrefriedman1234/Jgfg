@@ -107,7 +107,7 @@ class DetailsActivity : AppCompatActivity() {
                         ?: info.outputData.getString(com.pasiflonet.mobile.worker.SendWorker.KEY_LOG_TAIL)
                         ?: ""
 
-                if (tail.isNotBlank()) showOrUpdateLogDialog(tail)
+                if (tail.isNotBlank()) pasShowLog(tail)
 
                 if (info.state == androidx.work.WorkInfo.State.FAILED) {
                     val err = info.outputData.getString(com.pasiflonet.mobile.worker.SendWorker.KEY_ERROR_MSG) ?: "Send failed"
@@ -143,7 +143,7 @@ setContentView(R.layout.activity_details)
         swSendWithMedia.visibility = View.VISIBLE
         swSendWithMedia.isEnabled = false
         swSendWithMedia.isChecked = false
-        swSendWithMedia.text = "בודק מדיה.."
+        swSendWithMedia.text = "בודק מדיה."
 
         // תצוגת בסיס מהירה (miniThumb), ואז Thumb חד מהטלגרם
         decodeMiniThumb(miniThumbB64)?.let { ivPreview.setImageBitmap(it) }
@@ -365,7 +365,7 @@ setContentView(R.layout.activity_details)
                         ?: info.outputData.getString(com.pasiflonet.mobile.worker.SendWorker.KEY_LOG_TAIL)
                         ?: ""
 
-                if (tail.isNotBlank()) showOrUpdateLogDialog(tail)
+                if (tail.isNotBlank()) pasShowLog(tail)
 
                 if (info.state == androidx.work.WorkInfo.State.FAILED) {
                     val err = info.outputData.getString(com.pasiflonet.mobile.worker.SendWorker.KEY_ERROR_MSG) ?: "Send failed"
