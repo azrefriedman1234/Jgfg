@@ -23,9 +23,19 @@ class MainActivity : AppCompatActivity() {
         adapter = MessagesAdapter { msg ->
             // פותח DetailsActivity (מעביר מזהים בסיסיים – לא שוברים קומפילציה גם אם לא משתמשים שם)
             val i = Intent(this, DetailsActivity::class.java).apply {
-                putExtra("chat_id", msg.chatId)
-                putExtra("message_id", msg.id)
-            }
+                // extract ids safely (adapter may pass UiMsg or TdApi.Message)
+                  val chatId = (msg as? TdApi.Message)?.chatId ?: run {
+                      try { msg.javaClass.getField("chatId").getLong(msg) } catch (_: Throwable) { 0L }
+                  }
+                  val messageId = (msg as? TdApi.Message)?.id ?: run {
+                      try {
+                          val f = runCatching { msg.javaClass.getField("id") }.getOrNull()
+                              ?: runCatching { msg.javaClass.getField("messageId") }.getOrNull()
+                          if (f != null) f.getLong(msg) else 0L
+                      } catch (_: Throwable) { 0L }
+                  }
+                  putExtra("chat_id", chatId)
+                  putExtra("message_id", messageId)}
             startActivity(i)
         }
 
