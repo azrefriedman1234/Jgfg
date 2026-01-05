@@ -170,7 +170,7 @@ class OverlayEditorView @JvmOverloads constructor(
             canvas.drawRect(px, blurStroke)
         }          // 3) draw watermark
           watermarkBitmap?.let { wm ->
-                  val wm = watermarkBitmap
+                  val wm = watermarkBitmap ?: return
                   // watermark size relative to view
                   val targetW = dst.width() * 0.12f
                   val scale = targetW / max(1f, wm.width.toFloat())
@@ -221,7 +221,7 @@ class OverlayEditorView @JvmOverloads constructor(
 
             MotionEvent.ACTION_MOVE -> {
                 if (mode == Mode.DRAG_WM) {
-                    val wm = watermarkBitmap
+                    val wm = watermarkBitmap ?: return
                     if (wm != null) {
                         val targetW = dst.width() * 0.12f
                         val scale = targetW / max(1f, wm.width.toFloat())
@@ -288,7 +288,7 @@ class OverlayEditorView @JvmOverloads constructor(
     }
 
     private fun hitTestWatermark(x: Float, y: Float): RectF? {
-        val wm = watermarkBitmap ?: return null
+        val wm = watermarkBitmap ?: return ?: return null
         dst.set(0f, 0f, width.toFloat(), height.toFloat())
         val targetW = dst.width() * 0.12f
         val scale = targetW / max(1f, wm.width.toFloat())
