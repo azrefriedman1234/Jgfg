@@ -1,249 +1,119 @@
 package com.pasiflonet.mobile.ui
-import android.widget.Toast
-import android.view.View
-import com.pasiflonet.mobile.util.TempCleaner
-import com.pasiflonet.mobile.worker.SendWorker
-import android.net.Uri
-import android.os.Looper
-import android.os.Handler
 
-import android.Manifest
 import android.content.Intent
-import android.content.pm.PackageManager
-import android.os.Build
 import android.os.Bundle
-import android.widget.Button
-import androidx.activity.result.contract.ActivityResultContracts
+import android.view.View
+import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
-import androidx.core.content.ContextCompat
-import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
-import com.google.android.material.snackbar.Snackbar
-import com.pasiflonet.mobile.R
-import com.pasiflonet.mobile.td.TdLibManager
+import com.pasiflonet.mobile.util.TempCleaner
 import org.drinkless.tdlib.TdApi
-import java.io.File
-import java.util.Locale
-import kotlinx.coroutines.flow.collectLatest
-import kotlinx.coroutines.launch
 
 class MainActivity : AppCompatActivity() {
-    // LIVE_LIST_BEGIN
-    private val liveMsgs.clear(); liveMsgs.addAll(ArrayList<TdApi.Message>())
-    // LIVE_LIST_END
 
-    private lateinit var recycler: RecyclerView
-    private lateinit var btnClearTemp: Button
-    private lateinit var btnExit: Button
     private lateinit var adapter: MessagesAdapter
-
-    private val mediaPermLauncher =
-        registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { }
-
-    private val updateListener: (TdApi.Object) -> Unit = { obj ->
-        if (obj is TdApi.UpdateNewMessage) {
-            val m = obj.message
-            // newest first
-            liveMsgs.add(0, m)
-            if (liveMsgs.size > 200) liveMsgs.removeAt(liveMsgs.size - 1)
-            runOnUiThread {
-                adapter.notifyDataSetChanged()
-            }
-
-            }
-                ui {
-                    try {
-                        // If you want filter by current chat, add:
-                        // if (currentChatId != 0L && msg.chatId != currentChatId) return@ui
-
-                        // Adapter should expose addOrUpdate(message)
-
-                    } catch (_: Throwable) {
-                        // fallback: at least refresh whole list if you have one
-                        try { adapter.notifyDataSetChanged() } catch (_: Throwable) {}
-                    }
-                }
-            } catch (_: Throwable) { }
-
-            val msg = obj.message
-            val from = when (val s = msg.senderId) {
-                is TdApi.MessageSenderUser -> "user:${s.userId}"
-                is TdApi.MessageSenderChat -> "chat:${s.chatId}"
-                else -> "?"
-            }
-
-            val quad = extractUiFields(msg)
-
-            val ui = UiMsg(
-                chatId = msg.chatId,
-                msgId = msg.id,
-                dateSec = msg.date,
-                from = from,
-                text = quad.text,
-                hasMedia = quad.hasMedia,
-                mediaMime = quad.mime,
-                miniThumbB64 = quad.miniThumbB64
-            )
-
-            runOnUiThread { adapter.prepend(ui) }
-        }
-    }
+    private val liveMsgs = ArrayList<TdApi.Message>(200)
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        setContentView(R.layout.activity_main)
+        setContentView(getLayoutId())
 
-        // CLEAR_TEMP_BTN_BEGIN
-        val btnClearTemp = findViewById<View>(R.id.btnSettings)
-        btnClearTemp.setOnClickListener {
+        adapter = MessagesAdapter { msg ->
+            // פותח DetailsActivity (מעביר מזהים בסיסיים – לא שוברים קומפילציה גם אם לא משתמשים שם)
+            val i = Intent(this, DetailsActivity::class.java).apply {
+                putExtra("chat_id", msg.chatId)
+                putExtra("message_id", msg.id)
+            }
+            startActivity(i)
+        }
+
+        // RecyclerView (מאתרים ID בצורה דינמית כדי לא ליפול על R.id לא קיים)
+        val rv = findRecyclerView()
+        if (rv != null) {
+            rv.layoutManager = LinearLayoutManager(this)
+            rv.adapter = adapter
+        } else {
+            Toast.makeText(this, "RecyclerView לא נמצא בלייאאוט", Toast.LENGTH_SHORT).show()
+        }
+
+        // כפתור ניקוי זמניים (מנקה רק cacheDir/pasiflonet_tmp)
+        hookClearTempButton()
+
+        // רענון ראשוני
+        refreshList()
+    }
+
+    private fun refreshList() {
+        // אם ב־MessagesAdapter יש submit(list) – נשתמש בו, אחרת ננסה setItems/setMessages/submitList, ואם כלום – notify
+        try {
+            val m = adapter.javaClass.methods.firstOrNull { it.name == "submit" && it.parameterTypes.size == 1 }
+            if (m != null) {
+                m.invoke(adapter, liveMsgs)
+                return
+            }
+        } catch (_: Throwable) {}
+
+        try {
+            val m = adapter.javaClass.methods.firstOrNull { it.name in listOf("setItems","setMessages","submitList","update","setData") && it.parameterTypes.size == 1 }
+            if (m != null) {
+                m.invoke(adapter, liveMsgs)
+                return
+            }
+        } catch (_: Throwable) {}
+
+        adapter.notifyDataSetChanged()
+    }
+
+    private fun hookClearTempButton() {
+        val id = firstExistingId(
+            "btn_clear_temp",
+            "btnClearTemp",
+            "btn_clear",
+            "btnClear",
+            "btn_temp_clear",
+            "btnTempClear"
+        )
+        if (id == 0) return
+
+        val v = findViewById<View>(id) ?: return
+        v.setOnClickListener {
             val (files, bytes) = TempCleaner.clearTemp(this)
             Toast.makeText(this, "נוקו $files קבצים (" + (bytes/1024) + "KB)", Toast.LENGTH_SHORT).show()
         }
-        // CLEAR_TEMP_BTN_END
-        // CLEAR_TEMP_BUTTON_PATCH
-        try {
-            val btn = findViewById<android.view.View>(R.id.findViewById<android.view.View>(R.id.btnClearTemp))
-            btn.setOnClickListener {
-                val (files, bytes) = TempCleaner.TempCleaner.clearTemp(this)
-                val mb = (bytes.toDouble() / (1024.0*1024.0))
-                android.widget.Toast.makeText(this, "נוקו $files קבצים זמניים (${String.format("%.1f", mb)}MB)", android.widget.Toast.LENGTH_LONG).show()
-            }
-        } catch (_: Throwable) { }
-        findViewById<android.view.View>(R.id.btnSettings)
-            .setOnClickListener { startActivity(Intent(this, SettingsActivity::class.java)) }
-
-        requestMediaPermissionsIfNeeded()
-
-        TdLibManager.init(this)
-        TdLibManager.ensureClient()
-        TdLibManager.addUpdateListener(updateListener)
-
-        recycler = findViewById(R.id.recycler)
-        btnClearTemp = findViewById(R.id.btnClearTemp)
-        btnExit = findViewById(R.id.btnExit)
-
-        adapter = MessagesAdapter { m ->
-            DetailsActivity.start(
-                ctx = this,
-                chatId = m.chatId,
-                msgId = m.msgId,
-                text = m.text,
-                mediaUri = null,
-                mediaMime = m.mediaMime,
-                miniThumbB64 = m.miniThumbB64
-            )
-        }
-
-        recycler.layoutManager = LinearLayoutManager(this)
-        recycler.adapter = adapter
-
-        btnExit.setOnClickListener { finishAffinity() }
-
-        btnClearTemp.setOnClickListener {
-            val n = clearTempFiles()
-            Snackbar.make(recycler, "🧹 נוקו $n קבצים זמניים", Snackbar.LENGTH_SHORT).show()
-        }
-
-        // אם לא READY -> לוגין
-        lifecycleScope.launch {
-            TdLibManager.authState.collectLatest { st ->
-                if (st == null) return@collectLatest
-                if (st.constructor != TdApi.AuthorizationStateReady.CONSTRUCTOR) {
-                    startActivity(Intent(this@MainActivity, LoginActivity::class.java))
-                    finish()
-                }
-            }
-        }
     }
 
-    override fun onDestroy() {
-        super.onDestroy()
-        runCatching { TdLibManager.removeUpdateListener(updateListener) }
+    private fun findRecyclerView(): RecyclerView? {
+        val id = firstExistingId(
+            "recycler",
+            "recyclerView",
+            "rvMessages",
+            "messagesRecycler",
+            "rv",
+            "list"
+        )
+        if (id == 0) return null
+        return findViewById(id)
     }
 
-    private fun requestMediaPermissionsIfNeeded() {
-        val perms = mutableListOf<String>()
-        if (Build.VERSION.SDK_INT >= 33) {
-            perms += Manifest.permission.READ_MEDIA_IMAGES
-            perms += Manifest.permission.READ_MEDIA_VIDEO
-        } else {
-            perms += Manifest.permission.READ_EXTERNAL_STORAGE
+    private fun getLayoutId(): Int {
+        // activity_main הוא הדיפולט
+        val id = resources.getIdentifier("activity_main", "layout", packageName)
+        return if (id != 0) id else android.R.layout.list_content
+    }
+
+    private fun firstExistingId(vararg names: String): Int {
+        for (n in names) {
+            val id = resources.getIdentifier(n, "id", packageName)
+            if (id != 0) return id
         }
-        val need = perms.any { ContextCompat.checkSelfPermission(this, it) != PackageManager.PERMISSION_GRANTED }
-        if (need) mediaPermLauncher.launch(perms.toTypedArray())
+        return 0
     }
 
-    private fun clearTempFiles(): Int {
-        val dir: File = cacheDir
-        val prefixes = listOf("send_", "edit_", "wm_", "tg_", "thumb_")
-        var cnt = 0
-        dir.listFiles()?.forEach { f ->
-            val name = f.name
-            if (prefixes.any { name.startsWith(it) }) {
-                if (runCatching { f.delete() }.getOrDefault(false)) cnt++
-            }
-        }
-        return cnt
+    // נקודת כניסה עתידית: כשתרצה לחבר לייב מה־TDLib, נקרא כאן לעדכון הליסט ואז refreshList()
+    fun addIncomingMessage(m: TdApi.Message) {
+        liveMsgs.add(0, m)
+        if (liveMsgs.size > 200) liveMsgs.removeAt(liveMsgs.size - 1)
+        runOnUiThread { refreshList() }
     }
-
-    private data class Quad(val text: String, val hasMedia: Boolean, val mime: String?, val miniThumbB64: String?)
-
-    private fun extractUiFields(msg: TdApi.Message): Quad {
-        val c = msg.content ?: return Quad("(empty)", false, null, null)
-
-        var text = when (c) {
-            is TdApi.MessageText -> c.text?.text.orEmpty()
-            is TdApi.MessagePhoto -> (c.caption?.text?.takeIf { it.isNotBlank() } ?: "[PHOTO]")
-            is TdApi.MessageVideo -> (c.caption?.text?.takeIf { it.isNotBlank() } ?: "[VIDEO]")
-            is TdApi.MessageAnimation -> (c.caption?.text?.takeIf { it.isNotBlank() } ?: "[ANIMATION]")
-            is TdApi.MessageDocument -> (c.caption?.text?.takeIf { it.isNotBlank() } ?: "[DOCUMENT]")
-            else -> "[${c.javaClass.simpleName.uppercase(Locale.ROOT)}]"
-        }
-        if (text.length > 2000) text = text.take(2000) + "…"
-
-        val hasMedia = c.constructor != TdApi.MessageText.CONSTRUCTOR
-
-        val mime: String? = when (c) {
-            is TdApi.MessageVideo -> c.video?.mimeType
-            is TdApi.MessageAnimation -> c.animation?.mimeType
-            is TdApi.MessageDocument -> c.document?.mimeType
-            is TdApi.MessagePhoto -> "image/jpeg"
-            else -> null
-        }
-
-        // minithumb יגיע דרך intent אם קיים; פה נשמור null כדי לא לשבור
-        return Quad(text, hasMedia, mime, null)
-    }
-    // LIVE_UPDATES_HELPERS_BEGIN
-    private val uiHandler = Handler(Looper.getMainLooper())
-    private var livePollRunnable: Runnable? = null
-
-    private fun ui(block: () -> Unit) {
-        if (Looper.myLooper() == Looper.getMainLooper()) block() else uiHandler.post(block)
-    }
-
-    // Fallback: keep UI in sync even if some updates are missed.
-    private fun startLiveFallbackPolling() {
-        if (livePollRunnable != null) return
-        livePollRunnable = object : Runnable {
-            override fun run() {
-                try {
-                    // If you have a function that refreshes last messages, call it here.
-                    // Example (adjust to your TDLib wrapper):
-                    // refreshLastMessages()
-                } catch (_: Throwable) { }
-                uiHandler.postDelayed(this, 2500)
-            }
-        }
-        uiHandler.post(livePollRunnable!!)
-    }
-
-    private fun stopLiveFallbackPolling() {
-        livePollRunnable?.let { uiHandler.removeCallbacks(it) }
-        livePollRunnable = null
-    }
-    // LIVE_UPDATES_HELPERS_END
-
-
 }
