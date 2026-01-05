@@ -434,14 +434,6 @@ setContentView(R.layout.activity_details)
             }
     }
     // === SEND_LOG_UI_END ===
-
-
-            runOnUiThread {
-                val i = android.content.Intent(this, com.pasiflonet.mobile.ui.TranslateActivity::class.java)
-                translateLauncher.launch(i)
-            }
-
-
 // PAS_TRANSLATE_ASYNC_BEGIN
     // Async translate: never block UI thread
     private fun pasTranslateAsync(src: String) {
