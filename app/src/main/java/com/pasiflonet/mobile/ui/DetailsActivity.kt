@@ -107,7 +107,7 @@ class DetailsActivity : AppCompatActivity() {
                         ?: info.outputData.getString(com.pasiflonet.mobile.worker.SendWorker.KEY_LOG_TAIL)
                         ?: ""
 
-                if (tail.isNotBlank()) pasShowLog(tail)
+                if (tail.isNotBlank()) pasShowLogDialog(tail)
 
                 if (info.state == androidx.work.WorkInfo.State.FAILED) {
                     val err = info.outputData.getString(com.pasiflonet.mobile.worker.SendWorker.KEY_ERROR_MSG) ?: "Send failed"
@@ -365,7 +365,7 @@ setContentView(R.layout.activity_details)
                         ?: info.outputData.getString(com.pasiflonet.mobile.worker.SendWorker.KEY_LOG_TAIL)
                         ?: ""
 
-                if (tail.isNotBlank()) pasShowLog(tail)
+                if (tail.isNotBlank()) pasShowLogDialog(tail)
 
                 if (info.state == androidx.work.WorkInfo.State.FAILED) {
                     val err = info.outputData.getString(com.pasiflonet.mobile.worker.SendWorker.KEY_ERROR_MSG) ?: "Send failed"
@@ -384,11 +384,6 @@ setContentView(R.layout.activity_details)
         finish() // חוזר לטבלה
     }
 
-    private 
-
-
-
-    
     // === SEND_LOG_UI_BEGIN ===  // PAS_SEND_LOG_UI_V1
     private var pasLogDialog: androidx.appcompat.app.AlertDialog? = null
     private var pasLogTextView: android.widget.TextView? = null
