@@ -2,14 +2,12 @@ package com.pasiflonet.mobile.util
 
 object OnDeviceTranslate {
     /**
-     * כרגע "אופליין" בלי תלות חיצונית: מחזיר את הטקסט כמו שהוא כדי לא לשבור.
-     * אחר כך אפשר לשדרג ל-MLKit Translate (חינמי) עם תלות ב-gradle.
+     * כרגע אופליין "בטוח" (לא מפיל) – מחזיר את הטקסט כמו שהוא.
+     * אחר כך נחליף ל-MLKit Translate (חינמי) בצורה מסודרת.
      */
     fun translateToHebrewBlocking(
         ctx: android.content.Context,
         text: String,
         timeoutMs: Long = 20000L
-    ): String? {
-        return text
-    }
+    ): String? = text
 }

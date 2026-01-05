@@ -439,8 +439,7 @@ setContentView(R.layout.activity_details)
         if (src.isBlank()) return
         kotlin.concurrent.thread(start = true) {
             try {
-                val translated =
-                    com.pasiflonet.mobile.util.com.pasiflonet.mobile.util.OnDeviceTranslate.translateToHebrewBlocking(applicationContext, src)
+                val translated = com.pasiflonet.mobile.util.OnDeviceTranslate.translateToHebrewBlocking(applicationContext, src)
                         ?: ""
                 runOnUiThread {
                     val i = android.content.Intent(this, com.pasiflonet.mobile.ui.TranslateActivity::class.java)

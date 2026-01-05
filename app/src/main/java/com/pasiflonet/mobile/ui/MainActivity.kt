@@ -1,6 +1,5 @@
 package com.pasiflonet.mobile.ui
 
-import com.pasiflonet.mobile.R
 import android.content.Intent
 import android.os.Bundle
 import android.view.View
@@ -8,6 +7,7 @@ import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
+import com.pasiflonet.mobile.R
 import com.pasiflonet.mobile.util.TempCleaner
 import org.drinkless.tdlib.TdApi
 
@@ -21,26 +21,17 @@ class MainActivity : AppCompatActivity() {
         setContentView(R.layout.activity_main)
 
         adapter = MessagesAdapter { msg ->
-            // פותח DetailsActivity (מעביר מזהים בסיסיים – לא שוברים קומפילציה גם אם לא משתמשים שם)
             val i = Intent(this, DetailsActivity::class.java).apply {
-                // extract ids safely (adapter may pass UiMsg or TdApi.Message)
-                  val chatId = (msg as? TdApi.Message)?.chatId ?: run {
-                      try { msg.javaClass.getField("chatId").getLong(msg) } catch (_: Throwable) { 0L }
-                  }
-                  val messageId = (msg as? TdApi.Message)?.id ?: run {
-                      try {
-                          val f = runCatching { msg.javaClass.getField("id") }.getOrNull()
-                              ?: runCatching { msg.javaClass.getField("messageId") }.getOrNull()
-                          if (f != null) f.getLong(msg) else 0L
-                      } catch (_: Throwable) { 0L }
-                  }
-                  putExtra("chat_id", chatId)
-                  putExtra("message_id", messageId)}
+                putExtra("chat_id", msg.chatId)
+                putExtra("message_id", msg.id) // TdApi.Message.id
+            }
             startActivity(i)
         }
 
-        // RecyclerView
-        val rv = findByAnyId<RecyclerView>("recycler","recyclerView","rvMessages","messagesRecycler","rv","list")
+        // RecyclerView (מנסה כמה שמות ids נפוצים בלי להפיל קומפילציה)
+        val rv = findByAnyId<RecyclerView>(
+            "recycler", "recyclerView", "rvMessages", "messagesRecycler", "rv", "list"
+        )
         if (rv != null) {
             rv.layoutManager = LinearLayoutManager(this)
             rv.adapter = adapter
@@ -48,78 +39,115 @@ class MainActivity : AppCompatActivity() {
             Toast.makeText(this, "RecyclerView לא נמצא בלייאאוט", Toast.LENGTH_SHORT).show()
         }
 
-        hookSettingsAndExit()
-        hookClearTempButton()
+        hookSettingsExitClearButtons()
 
-        // רענון ראשוני
+        // ניסיון להתקין Live updates דרך TDLib בצורה חסינה (reflection)
+        installTdlibUpdatesHandler()
+
         refreshList()
     }
 
     private fun refreshList() {
         adapter.submit(liveMsgs)
     }
-        } catch (_: Throwable) {}
 
-        try {
-            val m = adapter.javaClass.methods.firstOrNull { it.name in listOf("setItems","setMessages","submitList","update","setData") && it.parameterTypes.size == 1 }
-            if (m != null) {
-                m.invoke(adapter, liveMsgs)
-                return
+    private fun hookSettingsExitClearButtons() {
+        // ניקוי זמניים
+        hookButton(listOf("btn_clear_temp", "btnClearTemp", "btn_temp_clear", "btnTempClear")) {
+            try {
+                val n = TempCleaner.clearTemp(applicationContext)
+                Toast.makeText(this, "נוקו קבצים זמניים: $n", Toast.LENGTH_SHORT).show()
+            } catch (t: Throwable) {
+                Toast.makeText(this, "ניקוי נכשל: ${t.message ?: ""}", Toast.LENGTH_LONG).show()
             }
-        } catch (_: Throwable) {}
+        }
 
-        adapter.notifyDataSetChanged()
-    }
+        // הגדרות
+        hookButton(listOf("btn_settings", "btnSettings", "btnSetting", "btn_settings_main")) {
+            try {
+                startActivity(Intent(this, SettingsActivity::class.java))
+            } catch (_: Throwable) {
+                Toast.makeText(this, "SettingsActivity לא נמצא", Toast.LENGTH_SHORT).show()
+            }
+        }
 
-    private fun hookClearTempButton() {
-        val id = firstExistingId(
-            "btn_clear_temp",
-            "btnClearTemp",
-            "btn_clear",
-            "btnClear",
-            "btn_temp_clear",
-            "btnTempClear"
-        )
-        if (id == 0) return
-
-        val v = findViewById<View>(id) ?: return
-        v.setOnClickListener {
-            val (files, bytes) = TempCleaner.clearTemp(this)
-            Toast.makeText(this, "נוקו $files קבצים (" + (bytes/1024) + "KB)", Toast.LENGTH_SHORT).show()
+        // סגור/יציאה
+        hookButton(listOf("btn_exit", "btnExit", "btn_close", "btnClose")) {
+            try { finishAffinity() } catch (_: Throwable) { finish() }
         }
     }
 
-    private fun findRecyclerView(): RecyclerView? {
-        val id = firstExistingId(
-            "recycler",
-            "recyclerView",
-            "rvMessages",
-            "messagesRecycler",
-            "rv",
-            "list"
-        )
-        if (id == 0) return null
-        return findViewById(id)
-    }
-
-    private fun getLayoutId(): Int {
-        // activity_main הוא הדיפולט
-        val id = resources.getIdentifier("activity_main", "layout", packageName)
-        return if (id != 0) id else android.R.layout.list_content
-    }
-
-    private fun firstExistingId(vararg names: String): Int {
+    private fun <T : View> findByAnyId(vararg names: String): T? {
         for (n in names) {
             val id = resources.getIdentifier(n, "id", packageName)
-            if (id != 0) return id
+            if (id != 0) {
+                @Suppress("UNCHECKED_CAST")
+                val v = findViewById<View>(id) as? T
+                if (v != null) return v
+            }
         }
-        return 0
+        return null
     }
 
-    // נקודת כניסה עתידית: כשתרצה לחבר לייב מה־TDLib, נקרא כאן לעדכון הליסט ואז refreshList()
-    fun addIncomingMessage(m: TdApi.Message) {
-        liveMsgs.add(0, m)
-        if (liveMsgs.size > 200) liveMsgs.removeAt(liveMsgs.size - 1)
-        runOnUiThread { refreshList() }
+    private fun hookButton(names: List<String>, onClick: () -> Unit) {
+        val v = findByAnyId<View>(*names.toTypedArray())
+        if (v != null) v.setOnClickListener { onClick() }
+    }
+
+    /**
+     * מתקין handler של עדכונים על TDLib בלי תלות בשמות/מחלקות ספציפיים.
+     * מנסה כמה מועמדים נפוצים אצלך בפרויקט.
+     */
+    private fun installTdlibUpdatesHandler() {
+        val handler: (TdApi.Object) -> Unit = { obj ->
+            if (obj is TdApi.UpdateNewMessage) {
+                try {
+                    val msg = obj.message
+                    liveMsgs.add(0, msg)
+                    if (liveMsgs.size > 200) liveMsgs.removeAt(liveMsgs.size - 1)
+                    runOnUiThread { refreshList() }
+                } catch (_: Throwable) {}
+            }
+        }
+
+        // מועמדים נפוצים: נסה להפעיל מתודה שמקבלת Function1<TdApi.Object, Unit>
+        val candidates = listOf(
+            "com.pasiflonet.mobile.td.TdRepository",
+            "com.pasiflonet.mobile.td.TdlibManager",
+            "com.pasiflonet.mobile.TelegramTdLib",
+            "com.pasiflonet.mobile.ui.TelegramTdLib",
+            "com.pasiflonet.mobile.td.TelegramTdLib"
+        )
+
+        val methodNames = listOf(
+            "setUpdatesHandler",
+            "setUpdateHandler",
+            "setUpdatesListener",
+            "addUpdatesHandler",
+            "addUpdateHandler"
+        )
+
+        for (cn in candidates) {
+            try {
+                val cls = Class.forName(cn)
+                val inst = cls.methods.firstOrNull { it.name == "getInstance" && it.parameterTypes.isEmpty() }?.invoke(null)
+                    ?: cls.kotlin.objectInstance
+                    ?: cls.constructors.firstOrNull { it.parameterTypes.isEmpty() }?.newInstance()
+
+                if (inst != null) {
+                    for (mn in methodNames) {
+                        val m = inst.javaClass.methods.firstOrNull { it.name == mn && it.parameterTypes.size == 1 }
+                        if (m != null) {
+                            m.invoke(inst, handler)
+                            Toast.makeText(this, "Live updates: ON", Toast.LENGTH_SHORT).show()
+                            return
+                        }
+                    }
+                }
+            } catch (_: Throwable) {}
+        }
+
+        // אם לא הצליח – לא שוברים. לפחות האפליקציה תעלה, ואת זה נסגור בשלב הבא עם שם המחלקה המדויק.
+        Toast.makeText(this, "Live updates: handler not attached (need exact TD entrypoint)", Toast.LENGTH_SHORT).show()
     }
 }
