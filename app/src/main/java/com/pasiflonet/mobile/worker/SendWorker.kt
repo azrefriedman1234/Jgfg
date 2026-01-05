@@ -70,6 +70,9 @@ class SendWorker(appContext: Context, params: WorkerParameters) : Worker(appCont
 
         try {
             pushLine("=== SendWorker started ===")
+            pushLine("INPUT: " + inputData.keyValueMap.toString())
+            pushLine("Thread=" + Thread.currentThread().name)
+
 
         val logFile = File(applicationContext.cacheDir, "ffmpeg_${System.currentTimeMillis()}.log")
         val tail = ArrayDeque<String>(200)
@@ -114,6 +117,7 @@ class SendWorker(appContext: Context, params: WorkerParameters) : Worker(appCont
             val targetChatId = resolveTargetChatId(targetUsernameRaw)
                 ?: run {
                     logE("resolveTargetChatId failed for '$targetUsernameRaw'")
+            pushLine("RETURN: Result.failure")
                     return Result.failure()
                 }
 
@@ -124,17 +128,20 @@ class SendWorker(appContext: Context, params: WorkerParameters) : Worker(appCont
                 val content = TdApi.InputMessageText(captionFmt, lpOpts, false)
                 if (!sendMessage(targetChatId, content)) return Result.failure()
                 logI("sent TEXT only OK")
+            pushLine("RETURN: Result.success")
                 return Result.success()
             }
 
             if (srcChatId == 0L || srcMsgId == 0L) {
                 logE("missing src ids")
+            pushLine("RETURN: Result.failure")
                 return Result.failure()
             }
 
             // 1) משוך הודעה מקורית
             val msg = getMessageSync(srcChatId, srcMsgId) ?: run {
                 logE("GetMessage failed")
+            pushLine("RETURN: Result.failure")
                 return Result.failure()
             }
 
@@ -143,6 +150,7 @@ class SendWorker(appContext: Context, params: WorkerParameters) : Worker(appCont
                 logE("No media in source message -> fallback to TEXT (but toggle asked media). sending TEXT anyway.")
                 val content = TdApi.InputMessageText(captionFmt, lpOpts, false)
                 if (!sendMessage(targetChatId, content)) return Result.failure()
+            pushLine("RETURN: Result.success")
                 return Result.success()
             }
 
@@ -151,6 +159,7 @@ class SendWorker(appContext: Context, params: WorkerParameters) : Worker(appCont
                 logE("DownloadFile failed (fileId=${media.fileId}) -> fallback TEXT")
                 val content = TdApi.InputMessageText(captionFmt, lpOpts, false)
                 if (!sendMessage(targetChatId, content)) return Result.failure()
+            pushLine("RETURN: Result.success")
                 return Result.success()
             }
 
@@ -227,6 +236,7 @@ class SendWorker(appContext: Context, params: WorkerParameters) : Worker(appCont
 
         } catch (t: Throwable) {
             logE("crash in SendWorker", t)
+            pushLine("RETURN: Result.failure")
             return Result.failure()
         } finally {
             // ניקוי רק קבצי tmp שלנו (לא תיקיות TDLib)
@@ -237,6 +247,7 @@ class SendWorker(appContext: Context, params: WorkerParameters) : Worker(appCont
             android.util.Log.e(TAG, "SendWorker crash", t)
             val msg = (t.message ?: t.javaClass.simpleName).take(300)
             pushLine("=== FAILED: $msg ===")
+            pushLine("RETURN: Result.failure")
             return Result.failure(
                 workDataOf(
                     KEY_ERROR_MSG to msg,
@@ -252,6 +263,7 @@ class SendWorker(appContext: Context, params: WorkerParameters) : Worker(appCont
             val msg = (t.message ?: t.javaClass.simpleName).take(300)
             try { pushLine("=== FAILED: " + msg + " ===") } catch (_: Throwable) {}
             try { pushLine(android.util.Log.getStackTraceString(t)) } catch (_: Throwable) {}
+            pushLine("RETURN: Result.failure")
             return Result.failure(
                 androidx.work.workDataOf(
                     KEY_ERROR_MSG to msg,

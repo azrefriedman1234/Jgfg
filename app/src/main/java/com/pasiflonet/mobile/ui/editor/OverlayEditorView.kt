@@ -236,6 +236,69 @@ class OverlayEditorView @JvmOverloads constructor(
             }
         }
 
+
+
+        // PAS_DRAW_BLUR_RECT_PREVIEW_V2
+        runCatching {
+            val stroke = android.graphics.Paint().apply {
+                style = android.graphics.Paint.Style.STROKE
+                strokeWidth = 5f
+                color = android.graphics.Color.argb(235, 255, 0, 0)
+                isAntiAlias = true
+            }
+            val fill = android.graphics.Paint().apply {
+                style = android.graphics.Paint.Style.FILL
+                color = android.graphics.Color.argb(70, 255, 0, 0)
+                isAntiAlias = true
+            }
+
+            fun getFloat(o: Any, names: List<String>): Float? {
+                for (n in names) {
+                    runCatching {
+                        val f = o.javaClass.getDeclaredField(n)
+                        f.isAccessible = true
+                        val v = f.get(o)
+                        when (v) {
+                            is Float -> return v
+                            is Double -> return v.toFloat()
+                            is Int -> return v.toFloat()
+                            is Long -> return v.toFloat()
+                        }
+                    }
+                }
+                return null
+            }
+
+            val candidates = mutableListOf<Any>()
+            // find any List field containing "blur"
+            for (f in this.javaClass.declaredFields) {
+                if (!f.name.contains("blur", ignoreCase = true)) continue
+                f.isAccessible = true
+                val v = runCatching { f.get(this) }.getOrNull()
+                if (v is List<*>) candidates.addAll(v.filterNotNull())
+            }
+
+            val vw = (width.takeIf { it > 0 } ?: 1).toFloat()
+            val vh = (height.takeIf { it > 0 } ?: 1).toFloat()
+
+            for (o in candidates) {
+                val l = getFloat(o, listOf("l","left","x1")) ?: continue
+                val t = getFloat(o, listOf("t","top","y1")) ?: continue
+                val r = getFloat(o, listOf("r","right","x2")) ?: continue
+                val b = getFloat(o, listOf("b","bottom","y2")) ?: continue
+
+                // if looks normalized (0..1), map to view pixels; else assume pixels
+                val nl = if (l <= 1.5f and r <= 1.5f) l * vw else l
+                val nt = if (t <= 1.5f and b <= 1.5f) t * vh else t
+                val nr = if (l <= 1.5f and r <= 1.5f) r * vw else r
+                val nb = if (t <= 1.5f and b <= 1.5f) b * vh else b
+
+                val rc = android.graphics.RectF(nl, nt, nr, nb)
+                canvas.drawRect(rc, fill)
+                canvas.drawRect(rc, stroke)
+            }
+        }
+
 }
 
     override fun onTouchEvent(e: MotionEvent): Boolean {
