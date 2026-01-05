@@ -439,9 +439,10 @@ setContentView(R.layout.activity_details)
                 val i = android.content.Intent(this, com.pasiflonet.mobile.ui.TranslateActivity::class.java)
                 translateLauncher.launch(i)
             }
-        
+
 
 // PAS_TRANSLATE_ASYNC_BEGIN
+    // Async translate: never block UI thread
     private fun pasTranslateAsync(src: String) {
         Thread {
             val translated = try {
@@ -462,14 +463,3 @@ setContentView(R.layout.activity_details)
 // PAS_TRANSLATE_ASYNC_END
 
 }
-    }
-
-}
-
-
-/*
-(auto) preserved trailing content after class end (was breaking compilation)
-
-// (auto) trimmed invalid tail after DetailsActivity class end
-
-*/
