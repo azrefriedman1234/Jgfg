@@ -94,11 +94,7 @@ class DetailsActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-
-        
-        
         pasInitSendLogsUi()
-initSendLogsUi()
 // Live logs from SendWorker by tag (works even if req variable name differs)
         androidx.work.WorkManager.getInstance(this)
             .getWorkInfosByTagLiveData("SEND_WORK")
@@ -353,7 +349,7 @@ setContentView(R.layout.activity_details)
             .putFloat(SendWorker.KEY_WM_Y, wmY)
             .build()
 
-        val req = OneTimeWorkRequestBuilder<SendWorker>().addTag("SEND_WORK").addTag("SEND_WORK").addTag(com.pasiflonet.mobile.worker.SendWorker.TAG_SEND).addTag("SEND_WORK").addTag("SEND_WORK").addTag("SEND_WORK").addTag("SEND_WORK").addTag("SEND_WORK")
+        val req = OneTimeWorkRequestBuilder<SendWorker>().addTag("SEND_WORK").addTag("SEND_WORK").addTag("SEND_WORK").addTag(com.pasiflonet.mobile.worker.SendWorker."SEND").addTag("SEND_WORK").addTag("SEND_WORK").addTag("SEND_WORK").addTag("SEND_WORK").addTag("SEND_WORK")
             .setInputData(data)
             .build()
 
@@ -390,24 +386,8 @@ setContentView(R.layout.activity_details)
         finish() // חוזר לטבלה
     }
 
-    private fun showOrUpdateLogDialog(text: String) {
-        if (logDialog == null) {
-            val tv = android.widget.TextView(this).apply {
-                setPadding(32, 24, 32, 24)
-                setTextIsSelectable(true)
-                typeface = android.graphics.Typeface.MONOSPACE
-            }
-            val scroll = android.widget.ScrollView(this).apply { addView(tv) }
-            logTextView = tv
-            logDialog = androidx.appcompat.app.AlertDialog.Builder(this)
-                .setTitle("FFmpeg / Send logs")
-                .setView(scroll)
-                .setPositiveButton("Close") { d, _ -> d.dismiss() }
-                .create()
-            logDialog!!.show()
-        }
-        logTextView?.text = text
-    }
+    private 
+
 
 
     }

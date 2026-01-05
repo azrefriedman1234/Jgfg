@@ -148,15 +148,81 @@ class OverlayEditorView @JvmOverloads constructor(
             }
         }
         // === END BLUR_PREVIEW_DRAW ===
+            
 
-
-        // DRAW_BLUR_PREVIEW_RECT
+        // DRAW_BLUR_PREVIEW_RECT_SAFE
         runCatching {
             val stroke = android.graphics.Paint().apply {
                 style = android.graphics.Paint.Style.STROKE
                 strokeWidth = 3f
                 color = android.graphics.Color.argb(220, 255, 0, 0)
             }
+            val fill = android.graphics.Paint().apply {
+                style = android.graphics.Paint.Style.FILL
+                color = android.graphics.Color.argb(50, 255, 0, 0)
+            }
+
+            // try to read blur rects from common fields (no compile-time types)
+            val listAny: List<Any?> = runCatching {
+                val f = this@OverlayEditorView.javaClass.declaredFields.firstOrNull { it.name in setOf("blurRects","mBlurRects","rects","blurRectList") }
+                f?.isAccessible = True
+                (f?.get(this@OverlayEditorView) as? List<*>)?.toList() ?: emptyList()
+            }.getOrElse { emptyList() }
+
+            fun getFloat(obj: Any, name: String): Float? = runCatching {
+                val fld = obj.javaClass.getDeclaredField(name)
+                fld.isAccessible = true
+                val v = fld.get(obj)
+                when (v) {
+                    is Float -> v
+                    is Double -> v.toFloat()
+                    is Int -> v.toFloat()
+                    else -> null
+                }
+            }.getOrNull()
+
+            for (rr in listAny) {
+                if (rr == null) continue
+
+                // Case 1: rr is RectF / Rect
+                if (rr is android.graphics.RectF) {
+                    canvas.drawRect(rr, fill)
+                    canvas.drawRect(rr, stroke)
+                    continue
+                }
+                if (rr is android.graphics.Rect) {
+                    val rf = android.graphics.RectF(rr)
+                    canvas.drawRect(rf, fill)
+                    canvas.drawRect(rf, stroke)
+                    continue
+                }
+
+                // Case 2: normalized fields l,t,r,b
+                val lN = getFloat(rr, "l")
+                val tN = getFloat(rr, "t")
+                val rN = getFloat(rr, "r")
+                val bN = getFloat(rr, "b")
+                if (lN != null && tN != null && rN != null && bN != null) {
+                    // map by dst if exists; else full view
+                    val dstRectF = runCatching {
+                        val df = this@OverlayEditorView.javaClass.getDeclaredField("dst")
+                        df.isAccessible = true
+                        df.get(this@OverlayEditorView) as? android.graphics.RectF
+                    }.getOrNull()
+
+                    val dst = dstRectF ?: android.graphics.RectF(0f, 0f, width.toFloat(), height.toFloat())
+                    val l = dst.left + lN * dst.width()
+                    val t = dst.top + tN * dst.height()
+                    val r = dst.left + rN * dst.width()
+                    val b = dst.top + bN * dst.height()
+                    val rc = android.graphics.RectF(l, t, r, b)
+                    canvas.drawRect(rc, fill)
+                    canvas.drawRect(rc, stroke)
+                }
+            }
+        }
+
+}
             val fill = android.graphics.Paint().apply {
                 style = android.graphics.Paint.Style.FILL
                 color = android.graphics.Color.argb(50, 255, 0, 0)
