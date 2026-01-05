@@ -124,6 +124,37 @@ class SendWorker(appContext: Context, params: WorkerParameters) : Worker(appCont
 
     val tmpDir = File(applicationContext.cacheDir, "pasiflonet_tmp").apply { mkdirs() }
 
+
+          // PAS_LOCAL_MEDIA_BEGIN
+          // If user selected a local media file (from phone), prefer it over TDLib source message.
+          var localInputFile: File? = null
+          var localKind: Kind? = null
+          if (sendWithMedia && mediaUriStr.isNotBlank()) {
+              try {
+                  val uri = Uri.parse(mediaUriStr)
+                  val tmpDir2 = File(applicationContext.cacheDir, "pasiflonet_tmp").apply { mkdirs() }
+                  // try pick extension by mime
+                  val ext = when {
+                      mediaMime.startsWith("video/") -> "mp4"
+                      mediaMime.startsWith("image/") -> "jpg"
+                      else -> "bin"
+                  }
+                  val f = resolveUriToTempFile(uri, tmpDir2, "picked_${System.currentTimeMillis()}.$ext")
+                  if (f != null) {
+                      localInputFile = f
+                      localKind = when {
+                          mediaMime.startsWith("video/") -> Kind.VIDEO
+                          mediaMime.startsWith("image/") -> Kind.PHOTO
+                          else -> Kind.DOCUMENT
+                      }
+                      logI("local media picked: ${'$'}mediaMime file=${'$'}{f.absolutePath}")
+                  }
+              } catch (t: Throwable) {
+                  logE("failed to load local media uri", t)
+              }
+          }
+          // PAS_LOCAL_MEDIA_END
+
     try {
         TdLibManager.init(applicationContext)
         TdLibManager.ensureClient()
@@ -145,7 +176,8 @@ class SendWorker(appContext: Context, params: WorkerParameters) : Worker(appCont
             resolveUriToTempFile(Uri.parse(watermarkUriStr), tmpDir, "wm_${System.currentTimeMillis()}.png")
         } else null
 
-        val rects = parseRects(blurRectsStr)
+        logI("blurRectsStr=" + blurRectsStr)
+val rects = parseRects(blurRectsStr)
 
         // --- choose input media source ---
         val (kind, inputFile) = if (mediaUriStr.isNotBlank()) {
@@ -438,17 +470,18 @@ val hasWm = wmFile != null
 
     // watermark: scale to ~18% of MAIN video width (not watermark width)
     if (hasWm) {
-        val nx = (if (wmX >= 0f) wmX else 0.82f).coerceIn(0f, 1f)
-        val ny = (if (wmY >= 0f) wmY else 0.82f).coerceIn(0f, 1f)
+              val nx = wmX.coerceIn(0f, 1f)
+              val ny = wmY.coerceIn(0f, 1f)
+              val outLabel2 = outLabel
+              // scale watermark relative to current video using scale2ref
+              val vScaled = "vwm"
+              val xExpr = "(${nx}*(main_w-overlay_w))"
+              val yExpr = "(${ny}*(main_h-overlay_h))"
+              filters += "[1:v][$cur]scale2ref=w=main_w*0.18:h=-1[wm][$vScaled]"
+              filters += "[$vScaled][wm]overlay=x=${xExpr}:y=${yExpr}:format=auto[$outLabel2]"
+          }
 
-        val xExpr = "($nx*(main_w-overlay_w))"
-        val yExpr = "($ny*(main_h-overlay_h))"
-
-        filters += "[1:v][$cur]scale2ref=w=main_w*${wmScale}:h=-1[wm][vref]"
-        filters += "[vref][wm]overlay=$xExpr:$yExpr[$outLabel]"
-    }
-
-    val fc = filters.joinToString(";")
+          val fc = filters.joinToString(";")
 
     val args = mutableListOf<String>()
     args += "-y"

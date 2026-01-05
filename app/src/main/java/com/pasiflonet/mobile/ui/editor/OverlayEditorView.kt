@@ -9,6 +9,10 @@ import android.view.View
 import kotlin.math.abs
 import kotlin.math.max
 import kotlin.math.min
+import android.graphics.Paint
+import android.graphics.RectF
+
+
 
 /**
  * Stable overlay editor:
@@ -20,7 +24,16 @@ class OverlayEditorView @JvmOverloads constructor(
     attrs: AttributeSet? = null
 ) : View(context, attrs) {
 
-    // PAS_FORCE_DRAW_BEGIN
+    
+    
+    private val blurPaint = Paint().apply {
+        style = Paint.Style.STROKE
+        strokeWidth = 4f
+        isAntiAlias = true
+    }
+// Pasiflonet: normalized blur rects (l,t,r,b in 0..1)
+    var blurRects: List<RectF> = emptyList()
+// PAS_FORCE_DRAW_BEGIN
     init {
         // Force drawing even if this is a ViewGroup
         try { setWillNotDraw(false) } catch (_: Throwable) {}
@@ -139,7 +152,10 @@ class OverlayEditorView @JvmOverloads constructor(
     fun exportWatermarkPosNorm(): Pair<Float, Float> = Pair(wmX.coerceIn(0f, 1f), wmY.coerceIn(0f, 1f))
 
     override fun onDraw(canvas: Canvas) {
-        super.onDraw(canvas)
+        
+        // Pasiflonet: blur rect preview
+        try { drawBlurRects(canvas) } catch (_: Throwable) {}
+super.onDraw(canvas)
 
         // dst is full view
         dst.set(0f, 0f, width.toFloat(), height.toFloat())
@@ -429,5 +445,16 @@ class OverlayEditorView @JvmOverloads constructor(
         }
     }
 
+
+
+    private fun drawBlurRects(canvas: android.graphics.Canvas) {
+        if (blurRects.isEmpty()) return
+        val w = width.toFloat().coerceAtLeast(1f)
+        val h = height.toFloat().coerceAtLeast(1f)
+        for (r in blurRects) {
+            val rr = RectF(r.left*w, r.top*h, r.right*w, r.bottom*h)
+            canvas.drawRect(rr, blurPaint)
+        }
+    }
 
 }
