@@ -87,6 +87,8 @@ class SendWorker(appContext: Context, params: WorkerParameters) : Worker(appCont
         val targetUsernameRaw = inputData.getString(KEY_TARGET_USERNAME).orEmpty().trim()
         val captionText = inputData.getString(KEY_TEXT).orEmpty()
         val sendWithMedia = inputData.getBoolean(KEY_SEND_WITH_MEDIA, true)
+val mediaUriStr = inputData.getString(KEY_MEDIA_URI).orEmpty().trim()
+val mediaMime = inputData.getString(KEY_MEDIA_MIME).orEmpty().trim()
 
         val blurRectsStr = inputData.getString(KEY_BLUR_RECTS).orEmpty().trim()
         val watermarkUriStr = inputData.getString(KEY_WATERMARK_URI).orEmpty().trim()
@@ -229,7 +231,96 @@ class SendWorker(appContext: Context, params: WorkerParameters) : Worker(appCont
                 return if (sentOk) Result.success() else Result.failure()
             }
 
-if (srcChatId == 0L || srcMsgId == 0L) {
+
+        // DIRECT_MEDIA_URI_BEGIN
+        // If editor/gallery provided a media_uri, use it (instead of TDLib src message ids).
+        if (sendWithMedia && mediaUriStr.isNotBlank()) {
+            try {
+                val uri = Uri.parse(mediaUriStr)
+
+                fun guessExt(mime: String): String {
+                    val m = mime.lowercase()
+                    return when {
+                        m.startsWith("video/") -> "mp4"
+                        m == "image/png" -> "png"
+                        m == "image/webp" -> "webp"
+                        m.startsWith("image/") -> "jpg"
+                        else -> "bin"
+                    }
+                }
+
+                fun kindFromMime(mime: String): Kind {
+                    val m = mime.lowercase()
+                    return when {
+                        m.startsWith("video/") -> Kind.VIDEO
+                        m == "image/gif" -> Kind.ANIMATION
+                        m.startsWith("image/") -> Kind.PHOTO
+                        else -> Kind.DOCUMENT
+                    }
+                }
+
+                val resolvedMime = mediaMime.ifBlank { applicationContext.contentResolver.getType(uri).orEmpty() }
+                val ext = guessExt(resolvedMime)
+                val inputFile = resolveUriToTempFile(uri, tmpDir, "in_${System.currentTimeMillis()}.$ext")
+                    ?: run {
+                        logE("media_uri resolve failed: $uri")
+                        val content = TdApi.InputMessageText(captionFmt, lpOpts, false)
+                        if (!sendMessage(targetChatId, content)) return Result.failure()
+                        return Result.success()
+                    }
+
+                val k = kindFromMime(resolvedMime)
+
+                val wmFile: File? = if (watermarkUriStr.isNotBlank()) {
+                    resolveUriToTempFile(Uri.parse(watermarkUriStr), tmpDir, "wm_${System.currentTimeMillis()}.png")
+                } else null
+
+                val rects = parseRects(blurRectsStr)
+                val needEdits = (wmFile != null) || rects.isNotEmpty()
+
+                val finalFile: File = if (!needEdits) {
+                    inputFile
+                } else {
+                    val outExt = when (k) {
+                        Kind.PHOTO -> "jpg"
+                        Kind.VIDEO, Kind.ANIMATION -> "mp4"
+                        else -> "bin"
+                    }
+                    val outFile = File(tmpDir, "out_${System.currentTimeMillis()}.$outExt")
+                    val ok = runFfmpegEdits(
+                        input = inputFile,
+                        output = outFile,
+                        kind = k,
+                        rects = rects,
+                        wmFile = wmFile,
+                        wmX = wmX,
+                        wmY = wmY
+                    )
+                    if (!ok) inputFile else outFile
+                }
+
+                val input = TdApi.InputFileLocal(finalFile.absolutePath)
+                val content: TdApi.InputMessageContent = when (k) {
+                    Kind.PHOTO -> TdApi.InputMessagePhoto().apply { photo = input; caption = captionFmt }
+                    Kind.VIDEO -> TdApi.InputMessageVideo().apply { video = input; caption = captionFmt; supportsStreaming = true }
+                    Kind.ANIMATION -> TdApi.InputMessageAnimation().apply { animation = input; caption = captionFmt }
+                    else -> TdApi.InputMessageDocument().apply { document = input; caption = captionFmt }
+                }
+
+                val okSend = sendMessage(targetChatId, content)
+                logI("sent DIRECT media kind=$k edited=$needEdits ok=$okSend file=${finalFile.name}")
+                return if (okSend) Result.success() else Result.failure()
+            } catch (t: Throwable) {
+                logE("direct media_uri path crashed", t)
+                val content = TdApi.InputMessageText(captionFmt, lpOpts, false)
+                if (!sendMessage(targetChatId, content)) return Result.failure()
+                return Result.success()
+            }
+        }
+        // DIRECT_MEDIA_URI_END
+
+
+        if (srcChatId == 0L || srcMsgId == 0L) {
                 logE("missing src ids")
                 pushLine("RETURN: Result.failure")
                 return Result.failure(
@@ -590,17 +681,60 @@ if (srcChatId == 0L || srcMsgId == 0L) {
 
         val outLabel = if (hasWm) "outv" else cur
 
-        // watermark overlay (if exists)
-        if (hasWm && wmFile != null) {
-            val xExpr = "(${wmX.coerceIn(0f, 1f)}*(main_w-overlay_w))"
-            val yExpr = "(${wmY.coerceIn(0f, 1f)}*(main_h-overlay_h))"
 
-            val vScaled = "vwm"
-            // scale watermark relative to current video
-            filters += "[$cur][1:v]scale2ref=w=iw*0.18:h=-1[$vScaled][wm]"
-            // simple overlay using xExpr/yExpr
-            filters += "[$vScaled][wm]overlay=$xExpr:$yExpr[$outLabel]"
+        // WM_PIXEL_SCALE_BEGIN
+        // Compute watermark scale in PIXELS (stable)
+        fun baseSizePx(): Pair<Int, Int> {
+            return try {
+                if (kind == Kind.PHOTO) {
+                    val opt = android.graphics.BitmapFactory.Options().apply { inJustDecodeBounds = true }
+                    android.graphics.BitmapFactory.decodeFile(input.absolutePath, opt)
+                    val w = (opt.outWidth).coerceAtLeast(1)
+                    val h = (opt.outHeight).coerceAtLeast(1)
+                    Pair(w, h)
+                } else {
+                    val mmr = android.media.MediaMetadataRetriever()
+                    mmr.setDataSource(input.absolutePath)
+                    val w = (mmr.extractMetadata(android.media.MediaMetadataRetriever.METADATA_KEY_VIDEO_WIDTH)?.toIntOrNull() ?: 1280).coerceAtLeast(1)
+                    val h = (mmr.extractMetadata(android.media.MediaMetadataRetriever.METADATA_KEY_VIDEO_HEIGHT)?.toIntOrNull() ?: 720).coerceAtLeast(1)
+                    runCatching { mmr.release() }
+                    Pair(w, h)
+                }
+            } catch (_: Throwable) {
+                Pair(1280, 720)
+            }
         }
+
+        fun wmSizePx(baseW: Int): Pair<Int, Int> {
+            return try {
+                val opt = android.graphics.BitmapFactory.Options().apply { inJustDecodeBounds = true }
+                android.graphics.BitmapFactory.decodeFile(wmFile!!.absolutePath, opt)
+                val ww = (opt.outWidth).coerceAtLeast(1)
+                val wh = (opt.outHeight).coerceAtLeast(1)
+                val targetW = (baseW * 0.18f).toInt().coerceAtLeast(32)
+                val scale = targetW / ww.toFloat()
+                val targetH = (wh * scale).toInt().coerceAtLeast(32)
+                Pair(targetW, targetH)
+            } catch (_: Throwable) {
+                val t = (baseW * 0.18f).toInt().coerceAtLeast(32)
+                Pair(t, t)
+            }
+        }
+
+        if (hasWm) {
+            val (bw, _) = baseSizePx()
+            val (wW, wH) = wmSizePx(bw)
+
+            val nx = wmX.coerceIn(0f, 1f)
+            val ny = wmY.coerceIn(0f, 1f)
+            val xExpr = "(${nx}*(main_w-overlay_w))"
+            val yExpr = "(${ny}*(main_h-overlay_h))"
+
+            filters += "[1:v]scale=${wW}:${wH}[wm]"
+            filters += "[$cur][wm]overlay=x=$xExpr:y=$yExpr:format=auto[$outLabel]"
+        }
+        // WM_PIXEL_SCALE_END
+
 
         val fc = filters.joinToString(";")
 
