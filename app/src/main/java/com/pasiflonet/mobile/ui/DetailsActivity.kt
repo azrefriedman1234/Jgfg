@@ -95,7 +95,9 @@ class DetailsActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        initSendWorkLogs()// Live logs from SendWorker by tag (works even if req variable name differs)
+        
+        pasInitSendLogsUi()
+initSendWorkLogs()// Live logs from SendWorker by tag (works even if req variable name differs)
         androidx.work.WorkManager.getInstance(this)
             .getWorkInfosByTagLiveData("SEND_WORK")
             .observe(this) { list ->
@@ -387,42 +389,47 @@ setContentView(R.layout.activity_details)
     
 
 
-    // === SEND_LOG_UI_BEGIN ===
-    private var sendLogDialog: androidx.appcompat.app.AlertDialog? = null
-    private var sendLogTextView: android.widget.TextView? = null
+    
 
-    private fun showSendLog(text: String) {
-        if (sendLogDialog == null) {
-            val tv = android.widget.TextView(this).apply {
+
+    // === SEND_LOG_UI_BEGIN ===
+    private var pasLogDialog: androidx.appcompat.app.AlertDialog? = null
+    private var pasLogTextView: android.widget.TextView? = null
+
+    private fun pasShowLogDialog(text: String) {
+        val tv = pasLogTextView
+        if (pasLogDialog == null || tv == null) {
+            val newTv = android.widget.TextView(this).apply {
                 setPadding(32, 24, 32, 24)
                 setTextIsSelectable(true)
                 typeface = android.graphics.Typeface.MONOSPACE
+                textSize = 12f
             }
-            val scroll = android.widget.ScrollView(this).apply { addView(tv) }
-            sendLogTextView = tv
-            sendLogDialog = androidx.appcompat.app.AlertDialog.Builder(this)
+            val scroll = android.widget.ScrollView(this).apply { addView(newTv) }
+            pasLogTextView = newTv
+            pasLogDialog = androidx.appcompat.app.AlertDialog.Builder(this)
                 .setTitle("FFmpeg / Send logs")
                 .setView(scroll)
                 .setPositiveButton("Close") { d, _ -> d.dismiss() }
                 .create()
-            sendLogDialog!!.show()
+            pasLogDialog!!.show()
         }
-        sendLogTextView?.text = text
+        pasLogTextView?.text = text
     }
 
-    private fun initSendWorkLogs() {
+    private fun pasInitSendLogsUi() {
         androidx.work.WorkManager.getInstance(this)
             .getWorkInfosByTagLiveData("SEND_WORK")
             .observe(this) { list ->
                 if (list.isNullOrEmpty()) return@observe
-                val info = list.maxByOrNull { it.runAttemptCount } ?: list.last()
+                val info = list.last()
 
                 val tail =
                     info.progress.getString(com.pasiflonet.mobile.worker.SendWorker.KEY_LOG_TAIL)
                         ?: info.outputData.getString(com.pasiflonet.mobile.worker.SendWorker.KEY_LOG_TAIL)
                         ?: ""
 
-                if (tail.isNotBlank()) showSendLog(tail)
+                if (tail.isNotBlank()) pasShowLogDialog(tail)
 
                 if (info.state == androidx.work.WorkInfo.State.FAILED) {
                     val err = info.outputData.getString(com.pasiflonet.mobile.worker.SendWorker.KEY_ERROR_MSG) ?: "Send failed"
@@ -431,8 +438,9 @@ setContentView(R.layout.activity_details)
 
 " + tail + "
 
-LOG FILE: " + logFile
-                    showSendLog(msg)
+LOG FILE:
+" + logFile
+                    pasShowLogDialog(msg)
                     android.widget.Toast.makeText(this, err, android.widget.Toast.LENGTH_LONG).show()
                 }
             }
@@ -440,6 +448,7 @@ LOG FILE: " + logFile
     // === SEND_LOG_UI_END ===
 
 }
+
 
 /*
 (auto) preserved trailing content after class end (was breaking compilation)
