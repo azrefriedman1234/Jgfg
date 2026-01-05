@@ -87,7 +87,7 @@ companion object {
             // FFmpeg log bridge (single)
             runCatching {
                 FFmpegKitConfig.enableLogCallback { log ->
-                    pushLine("[FFMPEG ${'$'}{log.level}] ${'$'}{log.message}".take(900))
+                    pushLine("[FFMPEG ${log.level}] ${log.message}".take(900))
                 }
                 FFmpegKitConfig.enableStatisticsCallback { stat: Statistics ->
                     pushLine("[STAT] time=${'$'}{stat.time} size=${'$'}{stat.size} bitrate=${'$'}{stat.bitrate} speed=${'$'}{stat.speed}".take(900))
@@ -107,6 +107,20 @@ companion object {
             val wmY = inputData.getFloat(KEY_WM_Y, 0.8f)
 
             val mediaUriStr = inputData.getString(KEY_MEDIA_URI).orEmpty().trim()
+
+    // STRICT_MEDIA_URI_GUARD
+    if (sendWithMedia && mediaUriStr.isBlank()) {
+        val err = "No media selected (media_uri is empty). Choose an image/video before Send."
+        appendLog(err)
+        try {
+            setProgressAsync(androidx.work.Data.Builder().putString(KEY_LOG_TAIL, err).build())
+        } catch (_: Throwable) {}
+        return Result.failure(androidx.work.Data.Builder()
+            .putString(KEY_ERROR_MSG, err)
+            .putString(KEY_LOG_FILE, logFile.absolutePath)
+            .putString(KEY_LOG_TAIL, err)
+            .build())
+    }
             val mediaMime = inputData.getString(KEY_MEDIA_MIME).orEmpty().trim()
 
             val srcChatId = inputData.getLong(KEY_SRC_CHAT_ID, 0L)
