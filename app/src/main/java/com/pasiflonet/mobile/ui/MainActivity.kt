@@ -1,4 +1,6 @@
 package com.pasiflonet.mobile.ui
+import android.widget.Toast
+import android.view.View
 import com.pasiflonet.mobile.util.TempCleaner
 import com.pasiflonet.mobile.worker.SendWorker
 import android.net.Uri
@@ -27,6 +29,10 @@ import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
 
 class MainActivity : AppCompatActivity() {
+    // LIVE_LIST_BEGIN
+    private val liveMsgs = ArrayList<TdApi.Message>()
+    // LIVE_LIST_END
+
 
     private lateinit var recycler: RecyclerView
     private lateinit var btnClearTemp: Button
@@ -41,14 +47,21 @@ class MainActivity : AppCompatActivity() {
             // LIVE_UPDATE_UI_PATCH
             // Ensure UI list updates on main thread
             try {
-                val msg = obj.message
+                val msg = val m = obj.message
+
+            // push newest first
+            liveMsgs.add(0, m)
+            if (liveMsgs.size > 200) liveMsgs.removeAt(liveMsgs.size - 1)
+            runOnUiThread {
+                adapter.submit(liveMsgs)
+            }
                 ui {
                     try {
                         // If you want filter by current chat, add:
                         // if (currentChatId != 0L && msg.chatId != currentChatId) return@ui
 
                         // Adapter should expose addOrUpdate(message)
-                        adapter.addOrUpdate(msg)
+
                     } catch (_: Throwable) {
                         // fallback: at least refresh whole list if you have one
                         try { adapter.notifyDataSetChanged() } catch (_: Throwable) {}
@@ -84,9 +97,17 @@ class MainActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
 
+
+        // CLEAR_TEMP_BTN_BEGIN
+        val btnClearTemp = findViewById<View>(R.id.btn_clear_temp)
+        btnClearTemp.setOnClickListener {
+            val (files, bytes) = TempCleaner.clearTemp(this)
+            Toast.makeText(this, "נוקו $files קבצים (" + (bytes/1024) + "KB)", Toast.LENGTH_SHORT).show()
+        }
+        // CLEAR_TEMP_BTN_END
         // CLEAR_TEMP_BUTTON_PATCH
         try {
-            val btn = findViewById<android.view.View>(R.id.findViewById<android.view.View>(R.id.btn_clear_temp))
+            val btn = findViewById<android.view.View>(R.id.findViewById<android.view.View>(R.id.btnClearTemp))
             btn.setOnClickListener {
                 val (files, bytes) = TempCleaner.TempCleaner.clearTemp(this)
                 val mb = (bytes.toDouble() / (1024.0*1024.0))
