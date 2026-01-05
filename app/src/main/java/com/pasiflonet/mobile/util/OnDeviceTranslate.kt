@@ -1,63 +1,67 @@
 package com.pasiflonet.mobile.util
 
+import android.content.Context
+import android.util.Log
 import com.google.mlkit.common.model.DownloadConditions
 import com.google.mlkit.nl.translate.TranslateLanguage
 import com.google.mlkit.nl.translate.Translation
 import com.google.mlkit.nl.translate.Translator
+import com.google.mlkit.nl.translate.TranslatorOptions
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicReference
 
 object OnDeviceTranslate {
+    private const val TAG = "OnDeviceTranslate"
 
     private fun translator(): Translator {
-        val opts = com.google.mlkit.nl.translate.TranslatorOptions.Builder()
-            .setSourceLanguage(TranslateLanguage.ENGLISH)
+        val opts = TranslatorOptions.Builder()
+            .setSourceLanguage(TranslateLanguage.ENGLISH) // MLKit דורש שפה מקור — נשאיר English כברירת מחדל
             .setTargetLanguage(TranslateLanguage.HEBREW)
             .build()
         return Translation.getClient(opts)
     }
 
-    fun toHebrew(text: String, cb: (out: String?, err: String?) -> Unit) {
-        if (text.isBlank()) return cb("", null)
+    /**
+     * תרגום אופליין (ML Kit). אם חסר מודל — יוריד אותו (חינם).
+     * מחזיר null אם נכשל/טיים-אאוט.
+     */
+    fun translateToHebrewBlocking(ctx: Context, text: String, timeoutMs: Long = 20000L): String? {
+        if (text.isBlank()) return ""
 
         val t = translator()
-        val cond = DownloadConditions.Builder().build()
-        t.downloadModelIfNeeded(cond)
+        val out = AtomicReference<String?>(null)
+        val latch = CountDownLatch(1)
+
+        val conditions = DownloadConditions.Builder().build()
+
+        t.downloadModelIfNeeded(conditions)
             .addOnSuccessListener {
                 t.translate(text)
-                    .addOnSuccessListener { out -> cb(out, null); t.close() }
-                    .addOnFailureListener { e -> cb(null, e.message); t.close() }
+                    .addOnSuccessListener { res ->
+                        out.set(res)
+                        latch.countDown()
+                    }
+                    .addOnFailureListener { e ->
+                        Log.w(TAG, "translate failed: ${e.message}")
+                        latch.countDown()
+                    }
             }
-            .addOnFailureListener { e -> cb(null, e.message); t.close() }
+            .addOnFailureListener { e ->
+                Log.w(TAG, "model download failed: ${e.message}")
+                latch.countDown()
+            }
+
+        try {
+            latch.await(timeoutMs, TimeUnit.MILLISECONDS)
+        } catch (_: Throwable) {}
+
+        try { t.close() } catch (_: Throwable) {}
+        return out.get()
     }
 }
 
-import java.util.concurrent.CountDownLatch
-import java.util.concurrent.TimeUnit
-
-object OnDeviceTranslate {
-    private fun translator(): com.google.mlkit.nl.translate.Translator {
-        val opts = com.google.mlkit.nl.translate.TranslatorOptions.Builder()
-            .setSourceLanguage(com.google.mlkit.nl.translate.TranslateLanguage.ENGLISH)
-            .setTargetLanguage(com.google.mlkit.nl.translate.TranslateLanguage.HEBREW)
-            .build()
-        return com.google.mlkit.nl.translate.Translation.getClient(opts)
-    }
-
-    fun translateToHebrewBlocking(ctx: android.content.Context, text: String, timeoutMs: Long = 20000L): String? {
-        val t = translator()
-        val latch = CountDownLatch(1)
-        val out = arrayOfNulls<String>(1)
-        val err = arrayOfNulls<Throwable>(1)
-
-        val cond = com.google.mlkit.common.model.DownloadConditions.Builder().build()
-        t.downloadModelIfNeeded(cond)
-            .continueWithTask { t.translate(text) }
-            .addOnSuccessListener { res -> out[0] = res; latch.countDown() }
-            .addOnFailureListener { e -> err[0] = e; latch.countDown() }
-
-        latch.await(timeoutMs, TimeUnit.MILLISECONDS)
-        try { t.close() } catch (_: Throwable) {}
-
-        if (err[0] != null) throw err[0]!!
-        return out[0]
-    }
+/** Wrapper top-level כדי שתוכל לקרוא לזה בקלות מכל מקום */
+fun translateToHebrewBlocking(ctx: Context, text: String, timeoutMs: Long = 20000L): String? {
+    return OnDeviceTranslate.translateToHebrewBlocking(ctx, text, timeoutMs)
 }
