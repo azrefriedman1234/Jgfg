@@ -2,471 +2,348 @@ package com.pasiflonet.mobile.ui.editor
 
 import android.content.Context
 import android.graphics.*
-import android.net.Uri
 import android.util.AttributeSet
 import android.view.MotionEvent
 import android.view.View
 import kotlin.math.abs
 import kotlin.math.max
 import kotlin.math.min
-import android.graphics.Paint
-import android.graphics.RectF
-
-
 
 /**
- * Stable overlay editor:
- * - Drag watermark (wmX/wmY normalized 0..1)
- * - Draw blur rectangles (normalized 0..1) with visible preview (fill+stroke)
+ * Clean, compiling overlay editor:
+ * - Base bitmap preview (fit center)
+ * - Watermark bitmap (scaled to ~18% of base width) draggable
+ * - Blur rectangles preview: drag to create rectangles
+ * - Rects are stored normalized 0..1 relative to the displayed image
  */
 class OverlayEditorView @JvmOverloads constructor(
     context: Context,
     attrs: AttributeSet? = null
 ) : View(context, attrs) {
 
-    
-    
-    
-    // PAS_BLUR_PREVIEW
-    private val blurPreviewPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        style = Paint.Style.STROKE
-        strokeWidth = 4f
-        color = 0x66FFFFFF
+    companion object {
+        const val MODE_WATERMARK = 0
+        const val MODE_BLUR = 1
     }
 
-private val blurPaint = Paint().apply {
-        style = Paint.Style.STROKE
-        strokeWidth = 4f
-        isAntiAlias = true
-    }
-// Pasiflonet: normalized blur rects (l,t,r,b in 0..1)
-    var blurRectFs: List<RectF> = emptyList()
-// PAS_FORCE_DRAW_BEGIN
-    init {
-        // Force drawing even if this is a ViewGroup
-        try { setWillNotDraw(false) } catch (_: Throwable) {}
-        try { invalidate() } catch (_: Throwable) {}
-    }
-    // PAS_FORCE_DRAW_END
-    }
+    // --- Public state ---
+    var interactionMode: Int = MODE_WATERMARK
+        set(value) {
+            field = value
+            invalidate()
+        }
 
-    data class OverlayState(
-        val wmX: Float,
-        val wmY: Float,
-        val blurRects: List<RectF>
-    )
+    var baseBitmap: Bitmap? = null
+        set(value) {
+            field = value
+            recomputeContentRect()
+            invalidate()
+        }
 
-    // normalized
-    private var wmX: Float = 0.75f
-    private var wmY: Float = 0.85f
+    var watermarkBitmap: Bitmap? = null
+        set(value) {
+            field = value
+            invalidate()
+        }
 
-    private var watermarkBitmap: Bitmap? = null
+    /** normalized 0..1 inside image rect */
+    var watermarkNx: Float = 0.80f
+        set(v) { field = v.coerceIn(0f, 1f); invalidate() }
 
-    // preview dst rect inside view (we default to full view)
-    private val dst = RectF()
+    /** normalized 0..1 inside image rect */
+    var watermarkNy: Float = 0.80f
+        set(v) { field = v.coerceIn(0f, 1f); invalidate() }
 
-    // blur rects normalized
-    private val blurRects: MutableList<RectF> = mutableListOf()
+    /** normalized blur rects in image space 0..1 */
+    private val blurRectsN: MutableList<RectF> = mutableListOf()
 
-    // interaction
-    private enum class Mode { NONE, DRAG_WM, DRAW_BLUR }
-    private var mode: Mode = Mode.NONE
-
-    private var downX = 0f
-    private var downY = 0f
-
-    private var wmHitOffsetX = 0f
-    private var wmHitOffsetY = 0f
-
-    private var curRect: RectF? = null
-
-    // paints
-    private val wmPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        isFilterBitmap = true
-    }
-
-    private val blurFill = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        style = Paint.Style.FILL
-        color = Color.argb(55, 255, 0, 0) // visible transparent red
-    }
-    private val blurStroke = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        style = Paint.Style.STROKE
-        strokeWidth = 3f
-        color = Color.argb(220, 255, 0, 0)
-    }
-
-    private val hudStroke = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        style = Paint.Style.STROKE
-        strokeWidth = 3f
-        color = Color.argb(180, 0, 200, 255) // cyan for watermark frame
-    }
-
-    fun setWatermarkBitmap(bmp: Bitmap?) {
-        watermarkBitmap = bmp
+    fun setBlurRectsNormalized(rects: List<RectF>) {
+        blurRectsN.clear()
+        rects.forEach { r ->
+            blurRectsN.add(normRect(r))
+        }
         invalidate()
     }
 
-    fun setWatermarkUri(uri: Uri?) {
-        // optional convenience (safe)
-        runCatching {
-            if (uri == null) {
-                watermarkBitmap = null
-            } else {
-                val ins = context.contentResolver.openInputStream(uri)
-                watermarkBitmap = ins?.use { BitmapFactory.decodeStream(it) }
-            }
+    fun getBlurRectsNormalized(): List<RectF> = blurRectsN.toList()
+
+    /**
+     * Serialize rects as "l,t,r,b;l,t,r,b" (normalized 0..1)
+     */
+    fun getBlurRectsString(): String {
+        return blurRectsN.joinToString(";") { r ->
+            "${r.left},${r.top},${r.right},${r.bottom}"
         }
+    }
+
+    fun setBlurRectsString(s: String) {
+        blurRectsN.clear()
+        val t = s.trim()
+        if (t.isEmpty()) {
+            invalidate()
+            return
+        }
+        t.split(";")
+            .map { it.trim() }
+            .filter { it.isNotEmpty() }
+            .forEach { part ->
+                val nums = part.split(",").map { it.trim() }
+                if (nums.size == 4) {
+                    val l = nums[0].toFloatOrNull()
+                    val top = nums[1].toFloatOrNull()
+                    val r = nums[2].toFloatOrNull()
+                    val b = nums[3].toFloatOrNull()
+                    if (l != null && top != null && r != null && b != null) {
+                        blurRectsN.add(normRect(RectF(l, top, r, b)))
+                    }
+                }
+            }
         invalidate()
     }
 
     fun clearBlurRects() {
-        blurRects.clear()
-        curRect = null
+        blurRectsN.clear()
         invalidate()
     }
 
-    fun setBlurRectsNorm(list: List<RectF>) {
-        blurRects.clear()
-        blurRects.addAll(list.map { it.norm() })
-        invalidate()
+    // --- Drawing helpers ---
+    private val paintBitmap = Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG)
+    private val paintWm = Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG)
+
+    private val blurStroke = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        style = Paint.Style.STROKE
+        strokeWidth = dp(2f)
+        color = 0xFFFFC107.toInt() // amber stroke
+    }
+    private val blurFill = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        style = Paint.Style.FILL
+        color = 0x55FFC107 // translucent fill
     }
 
-    fun getBlurRectsNorm(): List<RectF> = blurRects.toList()
-
-    fun setOverlayState(st: OverlayState) {
-        wmX = st.wmX.coerceIn(0f, 1f)
-        wmY = st.wmY.coerceIn(0f, 1f)
-        setBlurRectsNorm(st.blurRects)
-        invalidate()
+    private val wmStroke = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        style = Paint.Style.STROKE
+        strokeWidth = dp(2f)
+        color = 0xFF00E5FF.toInt()
     }
 
-    fun getOverlayState(): OverlayState = OverlayState(
-        wmX = wmX.coerceIn(0f, 1f),
-        wmY = wmY.coerceIn(0f, 1f),
-        blurRects = blurRects.toList()
-    )
+    // Rect of the fitted base image inside the view
+    private val contentRect = RectF()
+    private val tmpRectF = RectF()
 
-    /** export watermark pos normalized */
-    fun exportWatermarkPosNorm(): Pair<Float, Float> = Pair(wmX.coerceIn(0f, 1f), wmY.coerceIn(0f, 1f))
+    private fun dp(v: Float): Float = v * resources.displayMetrics.density
+
+    private fun recomputeContentRect() {
+        val b = baseBitmap ?: run {
+            contentRect.set(0f, 0f, 0f, 0f)
+            return
+        }
+        val vw = width.toFloat()
+        val vh = height.toFloat()
+        if (vw <= 0f || vh <= 0f) return
+
+        val bw = b.width.toFloat()
+        val bh = b.height.toFloat()
+        if (bw <= 0f || bh <= 0f) return
+
+        val scale = min(vw / bw, vh / bh)
+        val dw = bw * scale
+        val dh = bh * scale
+        val left = (vw - dw) / 2f
+        val top = (vh - dh) / 2f
+        contentRect.set(left, top, left + dw, top + dh)
+    }
+
+    override fun onSizeChanged(w: Int, h: Int, oldw: Int, oldh: Int) {
+        super.onSizeChanged(w, h, oldw, oldh)
+        recomputeContentRect()
+    }
 
     override fun onDraw(canvas: Canvas) {
-        
-        // Pasiflonet: blur rect preview
-        try { drawBlurRects(canvas) } catch (_: Throwable) {}
-super.onDraw(canvas)
+        super.onDraw(canvas)
 
-        // dst is full view
-        dst.set(0f, 0f, width.toFloat(), height.toFloat())
+        val base = baseBitmap
+        if (base != null && contentRect.width() > 0f && contentRect.height() > 0f) {
+            // Draw base bitmap fit-center
+            val src = Rect(0, 0, base.width, base.height)
+            canvas.drawBitmap(base, src, contentRect, paintBitmap)
 
-        // 1) draw blur previews (existing)
-        for (nr in blurRects) {
-            val r = nr.norm()
-            val rc = RectF(
-                dst.left + r.left * dst.width(),
-                dst.top + r.top * dst.height(),
-                dst.left + r.right * dst.width(),
-                dst.top + r.bottom * dst.height()
-            )
-            canvas.drawRect(rc, blurFill)
-            canvas.drawRect(rc, blurStroke)
+            // Draw blur preview rectangles
+            blurRectsN.forEach { nr ->
+                val vr = normToViewRect(nr)
+                canvas.drawRect(vr, blurFill)
+                canvas.drawRect(vr, blurStroke)
+            }
+
+            // Draw watermark if exists
+            val wm = watermarkBitmap
+            if (wm != null) {
+                val wmRect = computeWatermarkRect(wm)
+                // draw watermark bitmap
+                val wmSrc = Rect(0, 0, wm.width, wm.height)
+                canvas.drawBitmap(wm, wmSrc, wmRect, paintWm)
+                // outline
+                canvas.drawRect(wmRect, wmStroke)
+            }
         }
+    }
 
-        // 2) draw current rect while drawing
-        curRect?.let { rc ->
-            val n = rectPxToNorm(rc).norm()
-            val px = RectF(
-                dst.left + n.left * dst.width(),
-                dst.top + n.top * dst.height(),
-                dst.left + n.right * dst.width(),
-                dst.top + n.bottom * dst.height()
-            )
-            canvas.drawRect(px, blurFill)
-            canvas.drawRect(px, blurStroke)
-        }          // 3) draw watermark
-          watermarkBitmap?.let { wm ->
-                  val wm = watermarkBitmap ?: return
-                  // watermark size relative to view
-                  val targetW = dst.width() * 0.12f
-                  val scale = targetW / max(1f, wm.width.toFloat())
-                  val targetH = wm.height.toFloat() * scale
-                  val x = dst.left + wmX * (dst.width() - targetW)
-                  val y = dst.top + wmY * (dst.height() - targetH)
-                  val rc = RectF(x, y, x + targetW, y + targetH)
-                  canvas.drawBitmap(wm, null, rc, wmPaint)
-          }
-          // end watermark
-// (auto) removed broken debug block
+    private fun computeWatermarkRect(wm: Bitmap): RectF {
+        // watermark width approx 18% of displayed base width
+        val targetW = max(24f, contentRect.width() * 0.18f)
+        val aspect = wm.height.toFloat() / max(1f, wm.width.toFloat())
+        val targetH = targetW * aspect
 
+        val maxX = contentRect.width() - targetW
+        val maxY = contentRect.height() - targetH
 
+        val x = contentRect.left + (watermarkNx.coerceIn(0f, 1f) * max(0f, maxX))
+        val y = contentRect.top + (watermarkNy.coerceIn(0f, 1f) * max(0f, maxY))
 
+        tmpRectF.set(x, y, x + targetW, y + targetH)
+        return tmpRectF
+    }
 
+    // --- Touch interaction ---
+    private var draggingWm = false
+    private var dragDx = 0f
+    private var dragDy = 0f
 
-        
-// (auto) removed broken debug block
+    private var blurDragging = false
+    private val blurStart = PointF()
+    private val blurCurrent = PointF()
 
-        pasDrawBlurDebug(canvas)
+    override fun onTouchEvent(event: MotionEvent): Boolean {
+        val base = baseBitmap ?: return false
+        if (contentRect.width() <= 0f || contentRect.height() <= 0f) return false
 
-        // PAS_DRAW_BLUR_RECTS
-        // Draw blur rectangles preview (normalized 0..1 -> view coords)
-        try {
-            val w = width.toFloat().coerceAtLeast(1f)
-            val h = height.toFloat().coerceAtLeast(1f)
-            for (r in blurRects) {
-                val left = (r.left.coerceIn(0f,1f) * w)
-                val top = (r.top.coerceIn(0f,1f) * h)
-                val right = (r.right.coerceIn(0f,1f) * w)
-                val bottom = (r.bottom.coerceIn(0f,1f) * h)
-                canvas.drawRect(left, top, right, bottom, blurPreviewPaint)
-            }
-        } catch (_: Throwable) {}
-}
+        val x = event.x
+        val y = event.y
 
-    override fun onTouchEvent(e: MotionEvent): Boolean {
-        val x = e.x
-        val y = e.y
-
-        when (e.actionMasked) {
+        when (event.actionMasked) {
             MotionEvent.ACTION_DOWN -> {
-                downX = x
-                downY = y
-
-                // if hit watermark => drag; else start drawing blur rect
-                val hit = hitTestWatermark(x, y)
-                if (hit != null) {
-                    mode = Mode.DRAG_WM
-                    wmHitOffsetX = x - hit.left
-                    wmHitOffsetY = y - hit.top
-                    parent?.requestDisallowInterceptTouchEvent(true)
-                    return true
-                }
-
-                mode = Mode.DRAW_BLUR
-                curRect = RectF(x, y, x, y)
                 parent?.requestDisallowInterceptTouchEvent(true)
-                invalidate()
-                return true
-            }
 
-            MotionEvent.ACTION_MOVE -> {
-                if (mode == Mode.DRAG_WM) {
-                    val wm = watermarkBitmap ?: return
-                    if (wm != null) {
-                        val targetW = dst.width() * 0.12f
-                        val scale = targetW / max(1f, wm.width.toFloat())
-                        val targetH = wm.height.toFloat() * scale
-
-                        val nx = ((x - wmHitOffsetX - dst.left) / max(1f, (dst.width() - targetW))).coerceIn(0f, 1f)
-                        val ny = ((y - wmHitOffsetY - dst.top) / max(1f, (dst.height() - targetH))).coerceIn(0f, 1f)
-                        wmX = nx
-                        wmY = ny
-                        invalidate()
-                    }
-                    return true
-                }
-
-                if (mode == Mode.DRAW_BLUR) {
-                    curRect?.let {
-                        it.right = x
-                        it.bottom = y
-                        invalidate()
-                    }
-                    return true
-                }
-            }
-
-            MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
-                if (mode == Mode.DRAW_BLUR) {
-                    val r = curRect
-            // PAS_ADD_RECT_ON_UP_V1
-            runCatching {
-                val rc = curRect
-                if (rc != null) {
-                    val n = rectPxToNorm(rc).norm()
-                    if (n.right > n.left && n.bottom > n.top) {
-                        blurRects.add(n)
-                        invalidate()
+                if (interactionMode == MODE_WATERMARK && watermarkBitmap != null) {
+                    val wmRect = computeWatermarkRect(watermarkBitmap!!)
+                    if (wmRect.contains(x, y)) {
+                        draggingWm = true
+                        dragDx = x - wmRect.left
+                        dragDy = y - wmRect.top
+                        return true
                     }
                 }
-            }
 
-                    curRect = null
-                    mode = Mode.NONE
-
-                    if (r != null) {
-                        // ignore tiny drags
-                        if (abs(r.right - r.left) > 12f && abs(r.bottom - r.top) > 12f) {
-                            val n = rectPxToNorm(r).norm()
-                            blurRects.add(n)
-                        }
-                    }
+                if (interactionMode == MODE_BLUR) {
+                    blurDragging = true
+                    blurStart.set(x, y)
+                    blurCurrent.set(x, y)
                     invalidate()
                     return true
                 }
 
-                mode = Mode.NONE
-                curRect = null
-                invalidate()
                 return true
             }
-            else -> {}
+
+            MotionEvent.ACTION_MOVE -> {
+                if (draggingWm && watermarkBitmap != null) {
+                    val wm = watermarkBitmap!!
+                    val targetW = max(24f, contentRect.width() * 0.18f)
+                    val aspect = wm.height.toFloat() / max(1f, wm.width.toFloat())
+                    val targetH = targetW * aspect
+
+                    val maxX = contentRect.width() - targetW
+                    val maxY = contentRect.height() - targetH
+
+                    val left = (x - dragDx).coerceIn(contentRect.left, contentRect.left + max(0f, maxX))
+                    val top = (y - dragDy).coerceIn(contentRect.top, contentRect.top + max(0f, maxY))
+
+                    // update normalized
+                    watermarkNx = if (maxX <= 1f) 0f else (left - contentRect.left) / maxX
+                    watermarkNy = if (maxY <= 1f) 0f else (top - contentRect.top) / maxY
+
+                    invalidate()
+                    return true
+                }
+
+                if (blurDragging) {
+                    blurCurrent.set(x, y)
+                    invalidate()
+                    return true
+                }
+
+                return true
+            }
+
+            MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+                parent?.requestDisallowInterceptTouchEvent(false)
+
+                if (draggingWm) {
+                    draggingWm = false
+                    invalidate()
+                    return true
+                }
+
+                if (blurDragging) {
+                    blurDragging = false
+                    blurCurrent.set(x, y)
+
+                    // Create rect in view coords then convert to normalized
+                    val vr = RectF(
+                        min(blurStart.x, blurCurrent.x),
+                        min(blurStart.y, blurCurrent.y),
+                        max(blurStart.x, blurCurrent.x),
+                        max(blurStart.y, blurCurrent.y),
+                    )
+
+                    // ignore tiny rects
+                    if (vr.width() > dp(8f) && vr.height() > dp(8f)) {
+                        val nr = viewToNormRect(vr)
+                        blurRectsN.add(normRect(nr))
+                    }
+
+                    invalidate()
+                    return true
+                }
+
+                return true
+            }
         }
 
-
-        return super.onTouchEvent(e)
+        return false
     }
 
-    private fun hitTestWatermark(x: Float, y: Float): RectF? {
-        val wm = watermarkBitmap ?: return ?: return null
-        dst.set(0f, 0f, width.toFloat(), height.toFloat())
-        val targetW = dst.width() * 0.12f
-        val scale = targetW / max(1f, wm.width.toFloat())
-        val targetH = wm.height.toFloat() * scale
-
-        val px = dst.left + wmX * (dst.width() - targetW)
-        val py = dst.top + wmY * (dst.height() - targetH)
-        val rc = RectF(px, py, px + targetW, py + targetH)
-
-        return if (rc.contains(x, y)) rc else null
+    // --- Norm conversions (0..1 relative to contentRect) ---
+    private fun normRect(r: RectF): RectF {
+        val l = r.left.coerceIn(0f, 1f)
+        val t = r.top.coerceIn(0f, 1f)
+        val rr = r.right.coerceIn(0f, 1f)
+        val b = r.bottom.coerceIn(0f, 1f)
+        val left = min(l, rr)
+        val right = max(l, rr)
+        val top = min(t, b)
+        val bottom = max(t, b)
+        return RectF(left, top, right, bottom)
     }
 
-    private fun rectPxToNorm(px: RectF): RectF {
-        dst.set(0f, 0f, width.toFloat(), height.toFloat())
-        val l = ((min(px.left, px.right) - dst.left) / max(1f, dst.width())).coerceIn(0f, 1f)
-        val r = ((max(px.left, px.right) - dst.left) / max(1f, dst.width())).coerceIn(0f, 1f)
-        val t = ((min(px.top, px.bottom) - dst.top) / max(1f, dst.height())).coerceIn(0f, 1f)
-        val b = ((max(px.top, px.bottom) - dst.top) / max(1f, dst.height())).coerceIn(0f, 1f)
+    private fun viewToNormRect(viewRect: RectF): RectF {
+        val w = contentRect.width()
+        val h = contentRect.height()
+        if (w <= 1f || h <= 1f) return RectF(0f, 0f, 0f, 0f)
+
+        val cl = ((viewRect.left - contentRect.left) / w).coerceIn(0f, 1f)
+        val ct = ((viewRect.top - contentRect.top) / h).coerceIn(0f, 1f)
+        val cr = ((viewRect.right - contentRect.left) / w).coerceIn(0f, 1f)
+        val cb = ((viewRect.bottom - contentRect.top) / h).coerceIn(0f, 1f)
+        return RectF(cl, ct, cr, cb)
+    }
+
+    private fun normToViewRect(nr: RectF): RectF {
+        val w = contentRect.width()
+        val h = contentRect.height()
+        val l = contentRect.left + (nr.left * w)
+        val t = contentRect.top + (nr.top * h)
+        val r = contentRect.left + (nr.right * w)
+        val b = contentRect.top + (nr.bottom * h)
         return RectF(l, t, r, b)
     }
-
-    
-
-
-    // PAS_BLUR_DEBUG_BEGIN
-    private val pasBlurStroke: android.graphics.Paint by lazy {
-        android.graphics.Paint().apply {
-            style = android.graphics.Paint.Style.STROKE
-            strokeWidth = 4f
-            color = android.graphics.Color.argb(230, 255, 0, 0)
-            isAntiAlias = true
-        }
-    }
-    private val pasBlurFill: android.graphics.Paint by lazy {
-        android.graphics.Paint().apply {
-            style = android.graphics.Paint.Style.FILL
-            color = android.graphics.Color.argb(60, 255, 0, 0)
-        }
-    }
-
-    private fun pasFindBlurList(): List<Any?> {
-        // מחפש שדה/Getter בשם שמכיל "blur" שמחזיר List
-        val c = this.javaClass
-
-        runCatching {
-            for (f in c.declaredFields) {
-                f.isAccessible = true
-                if (f.name.contains("blur", ignoreCase = true)) {
-                    val v = f.get(this)
-                    if (v is List<*>) return v.toList()
-                }
-            }
-        }
-
-        runCatching {
-            for (m in c.declaredMethods) {
-                if (m.parameterTypes.isEmpty() && m.name.contains("blur", ignoreCase = true)) {
-                    m.isAccessible = true
-                    val v = m.invoke(this)
-                    if (v is List<*>) return v.toList()
-                }
-            }
-        }
-
-        return emptyList()
-    }
-
-    private fun pasToRectF(x: Any?): android.graphics.RectF? {
-        return when (x) {
-            is android.graphics.RectF -> x
-            is android.graphics.Rect -> android.graphics.RectF(x)
-            else -> null
-        }
-    }
-
-    private fun pasDrawBlurDebug(canvas: android.graphics.Canvas) {
-        val items = pasFindBlurList()
-        if (items.isEmpty()) return
-
-        for (it in items) {
-            val r = pasToRectF(it) ?: continue
-            canvas.drawRect(r, pasBlurFill)
-            canvas.drawRect(r, pasBlurStroke)
-        }
-    }
-    // PAS_BLUR_DEBUG_END
-
-
-
-    // Export blur rects as "l,t,r,b;..." in 0..1 normalized coordinates (matches SendWorker.parseRects)
-    fun exportBlurRects(): String {
-        return try {
-            val out = mutableListOf<String>()
-            val fieldNames = listOf("blurRects", "mBlurRects", "rects", "blurRectList")
-            for (fn in fieldNames) {
-                val f = runCatching { this::class.java.getDeclaredField(fn).apply { isAccessible = true } }.getOrNull()
-                    ?: continue
-                val v = runCatching { f.get(this) }.getOrNull() ?: continue
-
-                val list = when (v) {
-                    is java.util.List<*> -> v
-                    else -> continue
-                }
-
-                for (it in list) {
-                    if (it == null) continue
-                    when (it) {
-                        is android.graphics.RectF -> {
-                            val n = rectPxToNorm(it).norm()
-                            out += "${n.left},${n.top},${n.right},${n.bottom}"
-                        }
-                        is android.graphics.Rect -> {
-                            val rf = android.graphics.RectF(it)
-                            val n = rectPxToNorm(rf).norm()
-                            out += "${n.left},${n.top},${n.right},${n.bottom}"
-                        }
-                        else -> {
-                            val c = it.javaClass
-                            fun gf(n: String): Float? = runCatching {
-                                val ff = c.getDeclaredField(n).apply { isAccessible = true }
-                                (ff.get(it) as? Number)?.toFloat()
-                            }.getOrNull()
-                            val l = gf("l"); val t = gf("t"); val r = gf("r"); val b = gf("b")
-                            if (l != null && t != null && r != null && b != null) {
-                                val ll = l.coerceIn(0f, 1f)
-                                val tt = t.coerceIn(0f, 1f)
-                                val rr = r.coerceIn(0f, 1f)
-                                val bb = b.coerceIn(0f, 1f)
-                                if (rr > ll && bb > tt) out += "$ll,$tt,$rr,$bb"
-                            }
-                        }
-                    }
-                }
-            }
-            out.distinct().joinToString(";")
-        } catch (_: Throwable) {
-            ""
-        }
-    }
-
-
-
-    private fun drawBlurRects(canvas: android.graphics.Canvas) {
-        if (blurRects.isEmpty()) return
-        val w = width.toFloat().coerceAtLeast(1f)
-        val h = height.toFloat().coerceAtLeast(1f)
-        for (r in blurRects) {
-            val rr = RectF(r.left*w, r.top*h, r.right*w, r.bottom*h)
-            canvas.drawRect(rr, blurPaint)
-        }
-    }
-
 }
