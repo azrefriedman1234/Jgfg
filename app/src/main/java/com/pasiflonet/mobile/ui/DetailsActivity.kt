@@ -433,17 +433,23 @@ setContentView(R.layout.activity_details)
             }
     }
     // === SEND_LOG_UI_END ===
-
-
     private fun pasTranslateAsync(src: String) {
-        // לא לחסום UI – תרגום ברקע
-        thread(start = true) {
+        Thread {
             val translated = try {
                 com.pasiflonet.mobile.util.translateToHebrewCompat(src, 15000)
             } catch (t: Throwable) {
                 android.util.Log.w("DetailsActivity", "translate failed: " + (t.message ?: t.javaClass.simpleName))
                 ""
             }
+
+            runOnUiThread {
+                val i = android.content.Intent(this, com.pasiflonet.mobile.ui.TranslateActivity::class.java)
+                    .putExtra(com.pasiflonet.mobile.ui.TranslateActivity.EXTRA_SOURCE_TEXT, src)
+                    .putExtra(com.pasiflonet.mobile.ui.TranslateActivity.EXTRA_TRANSLATED_TEXT, translated)
+                translateLauncher.launch(i)
+            }
+        }.start()
+    }
 
             runOnUiThread {
                 val i = android.content.Intent(this, com.pasiflonet.mobile.ui.TranslateActivity::class.java)
