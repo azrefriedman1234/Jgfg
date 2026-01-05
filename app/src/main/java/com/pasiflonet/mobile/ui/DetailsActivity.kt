@@ -93,7 +93,9 @@ class DetailsActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        setContentView(R.layout.activity_details)
+        
+        observeSendWorkLogs()
+setContentView(R.layout.activity_details)
 
         ivPreview = findViewById(R.id.ivPreview)
         ivWatermarkOverlay = findViewById(R.id.ivWatermarkOverlay)
@@ -324,7 +326,7 @@ class DetailsActivity : AppCompatActivity() {
             .putFloat(SendWorker.KEY_WM_Y, wmY)
             .build()
 
-        val req = OneTimeWorkRequestBuilder<SendWorker>()
+        val req = OneTimeWorkRequestBuilder<SendWorker>().addTag("SEND_WORK").addTag("SEND_WORK")
             .setInputData(data)
             .build()
 
