@@ -21,6 +21,22 @@ import kotlin.math.max
 
 class SendWorker(appContext: Context, params: WorkerParameters) : Worker(appContext, params) {
 
+    // === APPEND_LOG_HELPER_BEGIN ===
+    private val __logBuf = StringBuilder()
+
+    private fun appendLog(line: String) {
+        try {
+            __logBuf.append(line).append('\n')
+            val tail = if (__logBuf.length > 8000) __logBuf.substring(__logBuf.length - 8000) else __logBuf.toString()
+            try {
+                setProgressAsync(androidx.work.workDataOf(KEY_LOG_TAIL to tail))
+            } catch (_: Throwable) {}
+            android.util.Log.i("SendWorker", line)
+        } catch (_: Throwable) {}
+    }
+    // === APPEND_LOG_HELPER_END ===
+
+
     
     private fun safeTail(x: String, max: Int = 3500): String {
         if (x.length <= max) return x
