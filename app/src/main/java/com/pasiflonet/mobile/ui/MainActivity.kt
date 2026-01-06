@@ -57,19 +57,14 @@ class MainActivity : AppCompatActivity() {
 
         findViewById<MaterialButton>(R.id.btnClearTemp).setOnClickListener {
             val (count, bytes) = clearPasiflonetTmpCount()
-            android.widget.Toast.makeText(this, "נוקו $count קבצים (" + (bytes/1024).toString() + "KB)", android.widget.Toast.LENGTH_SHORT).show()
+            android.widget.Toast.makeText(
+                this,
+                "נוקו $count קבצים (" + (bytes/1024).toString() + "KB)",
+                android.widget.Toast.LENGTH_SHORT
+            ).show()
         }
-
-        tvStatus.text = "סטטוס: בחר וידאו כדי להתחיל"
+tvStatus.text = "סטטוס: בחר וידאו כדי להתחיל"
     }
-
-    // Safe temp cleaner: deletes ONLY cacheDir/pasiflonet_tmp
-    private fun clearPasiflonetTmp() {
-        try {
-            val dir = java.io.File(cacheDir, "pasiflonet_tmp")
-            if (dir.exists()) {
-                dir.deleteRecursively()
-            }
             android.widget.Toast.makeText(this, "נוקו קבצים זמניים", android.widget.Toast.LENGTH_SHORT).show()
         } catch (t: Throwable) {
             android.widget.Toast.makeText(this, "ניקוי זמניים נכשל: " + (t.message ?: ""), android.widget.Toast.LENGTH_LONG).show()
