@@ -10,3 +10,15 @@ local.properties
 
 # local broken backups
 app/src/main/java/com/pasiflonet/mobile/ui/DetailsActivity.kt.broken_*
+
+# --- ignore heavy/binaries ---
+**/*.aar
+**/*.jar
+**/*.so
+**/*.zip
+/tmp/
+/tmp/**
+/third_party/
+/third_party/**
+/app/src/main/jniLibs/
+/app/src/main/jniLibs/**
