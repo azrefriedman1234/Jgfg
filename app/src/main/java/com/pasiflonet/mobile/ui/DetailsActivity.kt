@@ -35,6 +35,46 @@ import kotlin.concurrent.thread
 
 
 class DetailsActivity : AppCompatActivity() {
+    // מנסה למצוא את תיבת הטקסט של ההודעה
+    private fun findMessageEditText(): android.widget.EditText? {
+        val names = arrayOf("etText", "editTextMessage", "et_message", "messageEditText")
+        for (name in names) {
+            val id = resources.getIdentifier(name, "id", packageName)
+            if (id != 0) {
+                val v = findViewById<android.view.View>(id)
+                if (v is android.widget.EditText) return v
+            }
+        }
+        // fallback: EditText ראשון בעץ
+        fun dfs(v: android.view.View?): android.widget.EditText? {
+            if (v == null) return null
+            if (v is android.widget.EditText) return v
+            if (v is android.view.ViewGroup) {
+                for (i in 0 until v.childCount) {
+                    val r = dfs(v.getChildAt(i))
+                    if (r != null) return r
+                }
+            }
+            return null
+        }
+        return dfs(window.decorView)
+    }
+
+    private fun applyInitialTextIfEmpty(txt: String?) {
+        val t = txt ?: return
+        if (t.isBlank()) return
+        val et = findMessageEditText() ?: return
+        val current = et.text?.toString() ?: ""
+        if (current.isBlank()) {
+            et.setText(t)
+        }
+    }
+
+
+    companion object {
+        const val INITIAL_TEXT_EXTRA = "initial_text"
+    }
+
 
     companion object {
         private const val TAG_SEND = "SEND"

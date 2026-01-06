@@ -37,18 +37,17 @@ class MessagesAdapter(
         private val t2: TextView = v.findViewById(android.R.id.text2)
 
         fun bind(msg: TdApi.Message, onClick: (TdApi.Message) -> Unit) {
-            t1.text = "chat=${msg.chatId}  id=${msg.id}"
-            t2.text = extractText(msg)
-            itemView.setOnClickListener { onClick(msg) }
-        }
-
-        private fun extractText(msg: TdApi.Message): String {
-            val c = msg.content ?: return ""
-            return if (c is TdApi.MessageText) {
+            val c = msg.content
+            val text = if (c is TdApi.MessageText) {
                 c.text?.text ?: ""
             } else {
-                c.javaClass.simpleName
+                c?.javaClass?.simpleName ?: ""
             }
+
+            t1.text = "#${msg.id}  (${msg.chatId})"
+            t2.text = text
+
+            itemView.setOnClickListener { onClick(msg) }
         }
     }
 }

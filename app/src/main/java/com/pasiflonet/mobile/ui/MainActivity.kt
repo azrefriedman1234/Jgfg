@@ -27,6 +27,7 @@ class MainActivity : AppCompatActivity() {
             val i = Intent(this, DetailsActivity::class.java).apply {
                 putExtra("chat_id", msg.chatId)
                 putExtra("message_id", msg.id)
+                putExtra("initial_text", extractTextForDetails(msg))
             }
             startActivity(i)
         }
@@ -40,17 +41,16 @@ class MainActivity : AppCompatActivity() {
         }
 
         hookButtons()
+        installTdUpdates()
+    }
 
-        // לייב הודעות מה-TDLib
-        TdLibManager.addUpdatesHandler { obj ->
-            if (obj is TdApi.UpdateNewMessage) {
-                val msg = obj.message ?: return@addUpdatesHandler
-                runOnUiThread {
-                    liveMsgs.add(0, msg)
-                    while (liveMsgs.size > 120) liveMsgs.removeAt(liveMsgs.size - 1)
-                    adapter.submit(liveMsgs)
-                }
-            }
+    // ממלא תיבת הטקסט במסך פרטים
+    private fun extractTextForDetails(msg: TdApi.Message): String {
+        val c = msg.content ?: return ""
+        return if (c is TdApi.MessageText) {
+            c.text?.text ?: ""
+        } else {
+            ""
         }
     }
 
@@ -60,11 +60,11 @@ class MainActivity : AppCompatActivity() {
             try {
                 startActivity(Intent(this, SettingsActivity::class.java))
             } catch (t: Throwable) {
-                Toast.makeText(this, "SettingsActivity לא נמצא/שגיאה: ${t.message}", Toast.LENGTH_LONG).show()
+                Toast.makeText(this, "SettingsActivity לא נמצא: ${t.message}", Toast.LENGTH_LONG).show()
             }
         }
 
-        // כפתור יציאה/סגירה
+        // כפתור יציאה / סגירה
         findButtonByIdOrName("btn_exit", "btnExit", "btn_close", "btnClose")?.setOnClickListener {
             finishAffinity()
         }
@@ -76,6 +76,20 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    // לייב הודעות מה-TDLib
+    private fun installTdUpdates() {
+        TdLibManager.addUpdatesHandler { obj ->
+            if (obj is TdApi.UpdateNewMessage) {
+                val m = obj.message ?: return@addUpdatesHandler
+                runOnUiThread {
+                    liveMsgs.add(0, m)
+                    while (liveMsgs.size > 120) liveMsgs.removeAt(liveMsgs.size - 1)
+                    adapter.submit(liveMsgs)
+                }
+            }
+        }
+    }
+
     private fun findButtonByIdOrName(vararg names: String): Button? {
         for (name in names) {
             val id = resources.getIdentifier(name, "id", packageName)
@@ -84,7 +98,7 @@ class MainActivity : AppCompatActivity() {
                 if (v is Button) return v
             }
         }
-        // fallback: הכפתור הראשון שנמצא בעץ – רק אם לא מצאנו ID
+        // fallback – אם אין ID מתאים, נחפש כפתור ראשון בעץ
         return findFirstButton(window.decorView)
     }
 
