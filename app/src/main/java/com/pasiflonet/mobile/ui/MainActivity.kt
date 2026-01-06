@@ -47,7 +47,7 @@ class MainActivity : AppCompatActivity() {
         }
 
         findViewById<MaterialButton>(R.id.btnClearTemp).setOnClickListener {
-            val (count, bytes) = TempCleaner.clearPasiflonetTmp(this)
+            val (count, bytes) = clearPasiflonetTmp()
             tvLog.text = "נוקו $count פריטים (${bytes/1024}KB) מתוך cacheDir/pasiflonet_tmp"
         }
 
