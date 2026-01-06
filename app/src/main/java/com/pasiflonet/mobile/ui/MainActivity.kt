@@ -63,6 +63,7 @@ class MainActivity : AppCompatActivity() {
                 android.widget.Toast.LENGTH_SHORT
             ).show()
         }
+
 tvStatus.text = "סטטוס: בחר וידאו כדי להתחיל"
     }
             android.widget.Toast.makeText(this, "נוקו קבצים זמניים", android.widget.Toast.LENGTH_SHORT).show()
@@ -89,7 +90,8 @@ tvStatus.text = "סטטוס: בחר וידאו כדי להתחיל"
                 }
             }
         }
-        return kotlin.Pair(count, bytes)
+        try { dir.delete() } catch (_: Throwable) {}
+          return kotlin.Pair(count, bytes)
     }
 
 }
