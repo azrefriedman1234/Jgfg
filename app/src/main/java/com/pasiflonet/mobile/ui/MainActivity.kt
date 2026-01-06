@@ -47,7 +47,6 @@ class MainActivity : AppCompatActivity() {
         }
 
         findViewById<MaterialButton>(R.id.btnClearTemp).setOnClickListener {
-            clearPasiflonetTmp()
             val (count, bytes) = clearPasiflonetTmpCount()
             android.widget.Toast.makeText(this, "נוקו $count קבצים (" + (bytes/1024).toString() + "KB)", android.widget.Toast.LENGTH_SHORT).show()
         }
