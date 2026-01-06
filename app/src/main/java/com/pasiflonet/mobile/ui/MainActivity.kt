@@ -48,7 +48,7 @@ class MainActivity : AppCompatActivity() {
 
         findViewById<MaterialButton>(R.id.btnClearTemp).setOnClickListener {
             clearPasiflonetTmp()
-            val (count, bytes) = clearPasiflonetTmp()
+            val (count, bytes) = clearPasiflonetTmpCount()
             android.widget.Toast.makeText(this, "נוקו $count קבצים (" + (bytes/1024).toString() + "KB)", android.widget.Toast.LENGTH_SHORT).show()
         }
 
@@ -70,7 +70,7 @@ class MainActivity : AppCompatActivity() {
 
 
     // Safe: deletes ONLY cacheDir/pasiflonet_tmp
-    private fun clearPasiflonetTmp(): kotlin.Pair<Int, Long> {
+    private fun clearPasiflonetTmpCount(): kotlin.Pair<Int, Long> {
         val dir = java.io.File(cacheDir, "pasiflonet_tmp")
         var count = 0
         var bytes = 0L
