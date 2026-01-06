@@ -85,7 +85,14 @@ tasks.matching { it.name == "preBuild" }.configureEach {
 
 dependencies {
     
-    implementation("com.arthenica:smart-exception-java:0.2.1")
+    
+    // Media3 Transformer (replaces FFmpegKit)
+    implementation("androidx.media3:media3-transformer:1.9.0")
+    implementation("androidx.media3:media3-effect:1.9.0")
+    implementation("androidx.media3:media3-common:1.9.0")
+    implementation("androidx.media3:media3-exoplayer:1.9.0")
+    implementation("androidx.media3:media3-ui:1.9.0")
+implementation("com.arthenica:smart-exception-java:0.2.1")
     implementation("com.arthenica:smart-exception-common:0.2.1")
 // ML Kit (on-device translate)
     implementation("com.google.mlkit:language-id:17.0.6")
