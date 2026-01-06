@@ -10,8 +10,6 @@ import com.google.android.material.appbar.MaterialToolbar
 import com.google.android.material.button.MaterialButton
 import com.google.android.material.textfield.TextInputEditText
 import com.pasiflonet.mobile.R
-import com.pasiflonet.mobile.util.TempCleaner
-
 class MainActivity : AppCompatActivity() {
 
     private lateinit var etTargetChannel: TextInputEditText
@@ -55,4 +53,18 @@ class MainActivity : AppCompatActivity() {
 
         tvStatus.text = "סטטוס: בחר וידאו כדי להתחיל"
     }
+
+    // Safe temp cleaner: deletes ONLY cacheDir/pasiflonet_tmp
+    private fun clearPasiflonetTmp() {
+        try {
+            val dir = java.io.File(cacheDir, "pasiflonet_tmp")
+            if (dir.exists()) {
+                dir.deleteRecursively()
+            }
+            android.widget.Toast.makeText(this, "נוקו קבצים זמניים", android.widget.Toast.LENGTH_SHORT).show()
+        } catch (t: Throwable) {
+            android.widget.Toast.makeText(this, "ניקוי זמניים נכשל: " + (t.message ?: ""), android.widget.Toast.LENGTH_LONG).show()
+        }
+    }
+
 }
