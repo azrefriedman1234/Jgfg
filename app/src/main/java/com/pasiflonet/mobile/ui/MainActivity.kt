@@ -1,6 +1,7 @@
 package com.pasiflonet.mobile.ui
 
 import android.content.Intent
+import com.pasiflonet.mobile.util.CrashLogger
 import android.net.Uri
 import android.os.Bundle
 import android.widget.TextView
@@ -30,6 +31,14 @@ class MainActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
 
+        // SHOW_LAST_CRASH
+        CrashLogger.readAndClear(this)?.let { crash ->
+            android.app.AlertDialog.Builder(this)
+                .setTitle("קריסה אחרונה")
+                .setMessage(crash.take(6000))
+                .setPositiveButton("OK", null)
+                .show()
+        }
         findViewById<MaterialToolbar>(R.id.toolbar).setOnMenuItemClickListener { item ->
             when (item.itemId) {
                 R.id.menu_settings -> { startActivity(Intent(this, SettingsActivity::class.java)); true }
