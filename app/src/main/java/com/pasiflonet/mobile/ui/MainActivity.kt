@@ -48,7 +48,8 @@ class MainActivity : AppCompatActivity() {
 
         findViewById<MaterialButton>(R.id.btnClearTemp).setOnClickListener {
             clearPasiflonetTmp()
-            tvLog.text = "נוקו $count פריטים (${bytes/1024}KB) מתוך cacheDir/pasiflonet_tmp"
+            val (count, bytes) = clearPasiflonetTmp()
+            android.widget.Toast.makeText(this, "נוקו $count קבצים (" + (bytes/1024).toString() + "KB)", android.widget.Toast.LENGTH_SHORT).show()
         }
 
         tvStatus.text = "סטטוס: בחר וידאו כדי להתחיל"
@@ -65,6 +66,27 @@ class MainActivity : AppCompatActivity() {
         } catch (t: Throwable) {
             android.widget.Toast.makeText(this, "ניקוי זמניים נכשל: " + (t.message ?: ""), android.widget.Toast.LENGTH_LONG).show()
         }
+    }
+
+
+    // Safe: deletes ONLY cacheDir/pasiflonet_tmp
+    private fun clearPasiflonetTmp(): kotlin.Pair<Int, Long> {
+        val dir = java.io.File(cacheDir, "pasiflonet_tmp")
+        var count = 0
+        var bytes = 0L
+        if (dir.exists()) {
+            // delete children first
+            for (f in dir.walkBottomUp()) {
+                if (f.isFile) {
+                    count += 1
+                    bytes += (try { f.length() } catch (_: Throwable) { 0L })
+                }
+                if (f != dir) {
+                    try { f.delete() } catch (_: Throwable) {}
+                }
+            }
+        }
+        return kotlin.Pair(count, bytes)
     }
 
 }
